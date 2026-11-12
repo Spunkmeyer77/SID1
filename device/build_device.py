@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -504,8 +504,33 @@ mhide = msg("script hide about")
 wire(about_btn, 0, tab_); wire(tab_, 0, mshow); wire(mshow, 0, tp)
 wire(about, 0, mhide); wire(mhide, 0, tp)
 trn = obj("t b", 1, 1)
-mrshow = msg(", ".join("script show %s, script bringtofront %s" % (n, n) for n in RP_NAMES))
-mrhide = msg(", ".join("script hide %s" % n for n in RP_NAMES))
+# scripting names: no spaces (Max's "script show/hide" can't address them); the parameter names stay as they are
+import re as _re
+_used = set()
+def _safe(bb, prefix):
+    n = _re.sub(r"[^A-Za-z0-9_]", "_", bb.get("varname") or "") or prefix
+    base, k = n, 1
+    while n in _used:
+        k += 1; n = "%s_%d" % (base, k)
+    _used.add(n); bb["varname"] = n
+    return n
+RP_SET = set(id(bx["box"]) for bx in boxes[RP_FIRST:])
+RP_NAMES, MAIN_NAMES = [], []
+for i_, bx in enumerate(boxes):
+    bb = bx["box"]
+    if not bb.get("presentation") or bb.get("varname") == "about":
+        if bb.get("varname") == "about":
+            _used.add("about")
+        continue
+    if id(bb) in RP_SET:
+        RP_NAMES.append(_safe(bb, "rp%d" % i_))
+    else:
+        if bb.get("maxclass") == "panel" and bb["presentation_rect"][2] == W:
+            continue                    # the main backdrop stays
+        MAIN_NAMES.append(_safe(bb, "mp%d" % i_))
+# open: the main panel's controls go, the RANDOM panel comes; close: the other way round
+mrshow = msg(", ".join(["script hide %s" % n for n in MAIN_NAMES] + ["script show %s" % n for n in RP_NAMES]))
+mrhide = msg(", ".join(["script hide %s" % n for n in RP_NAMES] + ["script show %s" % n for n in MAIN_NAMES]))
 wire(rnd_btn, 0, trn); wire(trn, 0, mrshow); wire(mrshow, 0, tp)
 wire(rclose_in, 0, mrhide); wire(mrhide, 0, tp)
 

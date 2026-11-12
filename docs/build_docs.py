@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle, PageBreak)
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -317,7 +317,8 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=cover, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.1.1", ["RANDOM panel works inside Live (before, it only answered when the device was open in Max).",
+HISTORY = [("1.1.2", ["RANDOM panel: all its controls appear and respond in Live (type, chip, locks, chords, auto, CLOSE and the knobs), and the main panel no longer shows through it."]),
+           ("1.1.1", ["RANDOM panel works inside Live (before, it only answered when the device was open in Max).",
                       "Knobs show and send their full range: PW goes up to 4095, and the RANDOM knobs start where they should (AMOUNT 100, BRIGHT 0, MOTION 50, LENGTH 0, BARS 4).",
                       "A clear message in the Max console if the sid1~ external is older than the device."]),
            ("1.1.0", ["RANDOM panel: new patches by the rules for 8 sound types, with AMOUNT, BRIGHT, MOTION, LENGTH, section locks, arp chords, chip choice, mutate, undo/redo and an 8-roll history, auto roll on notes or bars, keep to the next free slot, and preview.",
