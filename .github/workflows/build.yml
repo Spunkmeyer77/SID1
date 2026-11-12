@@ -1,0 +1,82 @@
+name: Build sid1~
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Engine render test
+        run: |
+          cc -O2 -Wall -std=c99 tests/render_test.c engine/sid1_engine.c core/sid.c -lm -o render_test
+          ./render_test && ./render_test 2x
+
+  mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S max -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Check architectures and minimum macOS (must run on Monterey)
+        run: |
+          set -e
+          BIN=$(find build/externals -path '*sid1~.mxo/Contents/MacOS/*' -type f | head -1)
+          echo "binary: $BIN"
+          lipo -info "$BIN"
+          lipo -info "$BIN" | grep -q x86_64
+          lipo -info "$BIN" | grep -q arm64
+          for a in x86_64 arm64; do
+            MINOS=$(vtool -arch $a -show-build "$BIN" | awk '/minos/{print $2}')
+            echo "$a minos $MINOS"
+            [ "$(printf '%s\n11.0\n' "$MINOS" | sort -V | tail -1)" = "11.0" ] || { echo "minos $MINOS is newer than 11.0"; exit 1; }
+          done
+      - name: Package
+        run: |
+          cd build/externals && ditto -c -k --keepParent "sid1~.mxo" ../../sid1-mac.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sid1-mac
+          path: sid1-mac.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S max -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Package
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem -Recurse build -Filter "sid1~.mxe64" | Select-Object -First 1
+          Write-Host $f.FullName
+          Compress-Archive -Path $f.FullName -DestinationPath sid1-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sid1-windows
+          path: sid1-windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, mac, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sid1-mac.zip
+            sid1-windows.zip
