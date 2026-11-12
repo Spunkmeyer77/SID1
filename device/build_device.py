@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.0.5"
+VERSION = "1.1.0"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -126,9 +126,9 @@ def toggle(rect, longname, text, initial=0, color=BLUE, button=False, invisible=
     return add(b)
 
 
-def tab(rect, longname, short, items, initial=0, invisible=0, color=BLUE):
+def tab(rect, longname, short, items, initial=0, invisible=0, color=BLUE, rows=1):
     b = {"maxclass": "live.tab", "numinlets": 1, "numoutlets": 3, "outlettype": ["", "", "float"],
-         "patching_rect": place(100, 15), "num_lines_patching": 1, "num_lines_presentation": 1,
+         "patching_rect": place(100, 15), "num_lines_patching": rows, "num_lines_presentation": rows,
          "activebgcolor": GREY, "bgcolor": GREY, "activebgoncolor": color, "bgoncolor": color,
          "textcolor": TEXT, "textoncolor": DARK, "activetextcolor": TEXT, "activetextoncolor": DARK,
          "bordercolor": BORDER, "fontsize": 8.0, "fontface": 1, "rounded": 3.0}
@@ -189,7 +189,8 @@ xbend = obj("xbendin", 1, 2, ["int", "int"])
 pnote = obj("prepend note", 1, 1)
 pbend = obj("prepend bend", 1, 1)
 wire(midiin, 0, mparse); wire(midiin, 0, xbend)
-wire(mparse, 0, pnote); wire(pnote, 0, sid)
+tnote = obj("t l l", 1, 2)
+wire(mparse, 0, tnote); wire(tnote, 0, pnote); wire(pnote, 0, sid)
 wire(xbend, 0, pbend); wire(pbend, 0, sid)
 out = obj("plugout~", 2, 2, ["signal", "signal"])
 wire(sid, 0, out, 0); wire(sid, 0, out, 1)
@@ -199,12 +200,12 @@ tcmd = obj("t l b", 1, 2)
 medit = msg("edited")
 wire(rcmd, 0, tcmd); wire(tcmd, 0, sid); wire(tcmd, 1, medit)
 
-presets = obj("js sid1_presets.js", 1, 5)
+presets = obj("js sid1_presets.js", 1, 6)
 wire(medit, 0, presets)
 wire(presets, 0, sid)
 
 # info from sid1~: preset messages to js, field messages to the controls
-info_js = obj("route patch nfactory factoryname", 1, 4)
+info_js = obj("route patch nfactory factoryname rolled", 1, 5)
 wire(sid, 1, info_js)
 for i, sel in enumerate(["patch", "nfactory", "factoryname"]):
     p = obj("prepend " + sel, 1, 1)
@@ -381,6 +382,107 @@ field_ctl(dial([wx, 88, 44, 48], "WT Length", "LENGTH", 0, 8, 0, color=AMBER), "
 field_ctl(dial([wx + 48, 88, 44, 48], "WT Loop", "LOOP", 0, 8, 0, color=AMBER), "wtloop")
 comment([wx + 98, 90, 118, 60], "One step a frame: wave (· = the patch's), note offset, or ABS = absolute note. LOOP: step after the last.", DIM, 7.0, False)
 
+
+# ---- RANDOM: the rules are in sid1~ ("roll"); sid1_random.js runs the panel; the panel is a hidden bpatcher
+rnd = obj("js sid1_random.js", 1, 4)
+wire(rnd, 0, sid)
+wire(rnd, 2, presets)
+wire(rnd, 3, chip)
+srndui = obj("s ---rndui", 1, 0)
+wire(rnd, 1, srndui)
+wire(presets, 5, srndui)
+pp = obj("prepend patch", 1, 1); wire(info_js, 0, pp); wire(pp, 0, rnd)
+prl = obj("prepend rolled", 1, 1); wire(info_js, 3, prl); wire(prl, 0, rnd)
+psm = obj("prepend setmodel", 1, 1); wire(chip, 0, psm); wire(psm, 0, rnd)
+pno = obj("prepend noteon", 1, 1); wire(tnote, 1, pno); wire(pno, 0, rnd)
+met = obj("metro 1m @quantize 1m @autostart 1", 2, 1, ["bang"])
+mbar = msg("bar"); wire(met, 0, mbar); wire(mbar, 0, rnd)
+rr = obj("r ---rnd", 0, 1)
+rclose = obj("route close", 1, 2)
+wire(rr, 0, rclose); wire(rclose, 1, rnd)
+rnd_btn = toggle([262, 3, 57, 14], "Random", "RANDOM", button=True, invisible=2, color=AMBER)
+
+# the panel's contents, built into their own patcher
+main_boxes, main_lines = boxes, lines
+boxes, lines = [], []
+panel([0, 0, W, H], [0.086, 0.09, 0.106, 1.0])
+
+
+def send_ui(ctl, prefix, bang_msg=None):
+    s_ = obj("s ---rnd", 1, 0)
+    if bang_msg:
+        t = obj("t b", 1, 1); m = msg(bang_msg)
+        wire(ctl, 0, t); wire(t, 0, m); wire(m, 0, s_)
+    else:
+        p = obj("prepend " + prefix, 1, 1)
+        wire(ctl, 0, p); wire(p, 0, s_)
+
+
+RSECT = [("SOUND TYPE", 100, 176), ("CHARACTER", 276, 180), ("LOCK", 456, 145), ("ROLL", 601, 140),
+         ("AUTO", 741, 115), ("RESULT", 856, 209)]
+for title, x, w in RSECT:
+    panel([x, 6, 1, H - 12], SEP)
+    comment([x + 6, 4, w - 8, 14], title)
+comment([8, 4, 90, 18], "RANDOM", WHITE, 12.0)
+comment([8, 24, 90, 12], "New patches by", DIM, 7.0, False)
+comment([8, 34, 90, 12], "the rules: inside", DIM, 7.0, False)
+comment([8, 44, 90, 12], "safe ranges, never", DIM, 7.0, False)
+comment([8, 54, 90, 12], "silent or broken.", DIM, 7.0, False)
+send_ui(toggle([8, 74, 84, 16], "Random Close", "CLOSE", button=True, invisible=2), None, "close")
+jsui([6, 136, 60, 26], "sid1_stripes.js")
+
+send_ui(tab([106, 20, 164, 34], "Random Type", "Type", ["LEAD", "BASS", "PAD", "PLUCK", "ARP", "DRUM", "FX", "ANY"], initial=1, rows=2), "type")
+comment([106, 60, 164, 12], "CHIP FOR THE ROLL", DIM)
+send_ui(tab([106, 72, 164, 16], "Random Chip", "Chip", ["KEEP", "6581", "8580", "ANY"]), "chip")
+comment([106, 96, 164, 12], "Each type has its own", DIM, 7.0, False)
+comment([106, 106, 164, 12], "safe ranges.", DIM, 7.0, False)
+
+for i, (ln, sh, lo, hi, ini, col) in enumerate([("Random Amount", "AMOUNT", 0, 100, 100, BLUE), ("Random Bright", "BRIGHT", -100, 100, 0, BLUE),
+                                               ("Random Motion", "MOTION", 0, 100, 50, BLUE), ("Random Length", "LENGTH", -100, 100, 0, AMBER)]):
+    send_ui(dial([280 + i * 44, 20, 44, 48], ln, sh, lo, hi, ini, color=col), sh.lower())
+comment([282, 76, 170, 12], "AMOUNT: low nudges, high is new.", DIM, 7.0, False)
+comment([282, 86, 170, 12], "BRIGHT, MOTION, LENGTH steer it.", DIM, 7.0, False)
+
+for k, t in enumerate(["OSC", "ENV", "FILTER", "PITCH", "WTABLE"]):
+    send_ui(toggle([462 + (k % 3) * 46, 20 + (k // 3) * 20, 44, 16], "Lock " + t.title(), t, color=AMBER), "lock %d" % k)
+comment([462, 62, 134, 12], "ARP CHORDS", DIM)
+send_ui(tab([462, 74, 134, 16], "Random Chords", "Chords", ["MAJ", "MIN", "SUS", "ANY"], initial=3), "chords")
+
+send_ui(toggle([607, 20, 62, 16], "Roll", "ROLL", button=True, color=AMBER), None, "roll")
+send_ui(toggle([672, 20, 62, 16], "Mutate", "MUTATE", button=True), None, "mutate")
+send_ui(toggle([607, 40, 62, 16], "Undo", "◀ UNDO", button=True, invisible=2), None, "undo")
+send_ui(toggle([672, 40, 62, 16], "Redo", "REDO ▶", button=True, invisible=2), None, "redo")
+comment([607, 62, 127, 12], "HISTORY", DIM)
+hj = jsui([607, 74, 127, 14], "sid1_rhist.js", outs=1)
+shj = obj("s ---rnd", 1, 0); wire(hj, 0, shj)
+
+send_ui(tab([747, 20, 103, 16], "Auto Roll", "Auto", ["OFF", "NOTE", "BARS"], invisible=1), "auto")
+send_ui(dial([747, 40, 44, 48], "Auto Bars", "BARS", 1, 16, 4, color=AMBER, invisible=1), "bars")
+comment([795, 46, 58, 12], "ROLL is", DIM, 7.0, False)
+comment([795, 56, 58, 12], "MIDI-mappable", DIM, 7.0, False)
+
+rj = jsui([862, 18, 197, 96], "sid1_rresult.js")
+send_ui(toggle([862, 118, 62, 16], "Keep", "KEEP", button=True, invisible=2, color=AMBER), None, "keep")
+send_ui(toggle([928, 118, 62, 16], "Preview", "PREVIEW", button=True, invisible=2), None, "preview")
+
+rui = obj("r ---rndui", 0, 1)
+rroute = obj("route hist result free", 1, 4)
+wire(rui, 0, rroute)
+ph = obj("prepend hist", 1, 1); wire(rroute, 0, ph); wire(ph, 0, hj)
+pr = obj("prepend result", 1, 1); wire(rroute, 1, pr); wire(pr, 0, rj)
+pf = obj("prepend free", 1, 1); wire(rroute, 2, pf); wire(pf, 0, rj)
+
+sub_boxes, sub_lines = boxes, lines
+boxes, lines = main_boxes, main_lines
+rpanel = add({"maxclass": "bpatcher", "embed": 1, "numinlets": 0, "numoutlets": 0, "bgmode": 0, "border": 0,
+              "clickthrough": 0, "enablehscroll": 0, "enablevscroll": 0, "lockeddragscroll": 0, "offset": [0.0, 0.0],
+              "viewvisibility": 1, "hidden": 1, "varname": "randpanel", "patching_rect": place(200, 60),
+              "patcher": {"fileversion": 1, "appversion": {"major": 8, "minor": 6, "revision": 5, "architecture": "x64", "modernui": 1},
+                          "classnamespace": "box", "rect": [0, 0, W, H], "openinpresentation": 1, "default_fontsize": 10.0,
+                          "default_fontface": 0, "default_fontname": "Arial Bold", "gridsize": [8.0, 8.0],
+                          "boxes": sub_boxes, "lines": sub_lines},
+              **pres([0, 0, W, H])})
+
 # about overlay (hidden until ABOUT)
 about = jsui([0, 0, W, H], "sid1_about.js", outs=1, varname="about", hidden=1)
 tp = obj("thispatcher", 1, 2, ["", ""])
@@ -389,6 +491,11 @@ mshow = msg("script show about, script bringtofront about")
 mhide = msg("script hide about")
 wire(about_btn, 0, tab_); wire(tab_, 0, mshow); wire(mshow, 0, tp)
 wire(about, 0, mhide); wire(mhide, 0, tp)
+trn = obj("t b", 1, 1)
+mrshow = msg("script show randpanel, script bringtofront randpanel")
+mrhide = msg("script hide randpanel")
+wire(rnd_btn, 0, trn); wire(trn, 0, mrshow); wire(mrshow, 0, tp)
+wire(rclose, 0, mrhide); wire(mrhide, 0, tp)
 
 # field dumps from sid1~ back to the controls (set: no output, no edit)
 plain = [f for f, _ in FIELD_ROUTE if isinstance(f, str)]
@@ -429,6 +536,9 @@ patcher = {"patcher": {
         {"name": "sid1_stripes.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_adsr.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_knob.js", "type": "TEXT", "implicit": 1},
+        {"name": "sid1_random.js", "type": "TEXT", "implicit": 1},
+        {"name": "sid1_rhist.js", "type": "TEXT", "implicit": 1},
+        {"name": "sid1_rresult.js", "type": "TEXT", "implicit": 1},
         ],
     "latency": 0, "is_mpe": 0, "minimum_live_version": "", "minimum_max_version": "",
     "platform_compatibility": 0, "project": {"version": 1, "creationdate": 3590052493, "modificationdate": 3590052493,
@@ -447,10 +557,12 @@ outp = sys.argv[1] if len(sys.argv) > 1 else "SID1.amxd"
 open(outp, "wb").write(amxd)
 
 # checks: unique parameter names, wires in range
-names = [b["box"]["varname"] for b in boxes if b["box"].get("parameter_enable")]
+allb = boxes + sub_boxes
+names = [b["box"]["varname"] for b in allb if b["box"].get("parameter_enable")]
 assert len(names) == len(set(names)), "duplicate parameter names"
-ids = {b["box"]["id"]: b["box"] for b in boxes}
-for l in lines:
+for bx, ln in ((boxes, lines), (sub_boxes, sub_lines)):
+  ids = {b["box"]["id"]: b["box"] for b in bx}
+  for l in ln:
     s, d = l["patchline"]["source"], l["patchline"]["destination"]
     assert s[1] < ids[s[0]]["numoutlets"], ("outlet", s, ids[s[0]].get("text"))
     assert d[1] < ids[d[0]]["numinlets"], ("inlet", d, ids[d[0]].get("text"), ids[d[0]]["maxclass"])

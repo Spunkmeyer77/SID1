@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle, PageBreak)
 
-VERSION = "1.0.5"
+VERSION = "1.1.0"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -17,82 +17,104 @@ os.makedirs(outdir, exist_ok=True)
 d = open(amxd, "rb").read()
 j = json.loads(d[d.index(b"{"):].rstrip(b"\n\x00"))
 S, W, H = 3, 1065, 169
-im = Image.new("RGB", (W * S, H * S), (30, 32, 37))
-dr = ImageDraw.Draw(im)
-try:
-    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 8 * S)
-    small = ImageFont.truetype("DejaVuSans.ttf", 6 * S)
-except OSError:
-    font = small = ImageFont.load_default()
-rgb = lambda c: tuple(int(v * 255) for v in c[:3])
-for b in j["patcher"]["boxes"]:
-    b = b["box"]
-    if not b.get("presentation") or b.get("hidden"):
-        continue
-    x, y, w, h = [v * S for v in b["presentation_rect"]]
-    k = b["maxclass"]
-    if k == "panel":
-        dr.rectangle([x, y, x + w - 1, y + h - 1], fill=rgb(b["bgcolor"]))
-    elif k == "live.comment":
-        dr.text((x, y), b["text"][:40], fill=rgb(b["textcolor"]), font=font if b.get("fontface") else small)
-    elif k == "live.dial":
-        r = min(w, h - 16 * S) / 2 - S
-        cx, cy = x + w / 2, y + 10 * S + r
-        dr.arc([cx - r - 2 * S, cy - r - 2 * S, cx + r + 2 * S, cy + r + 2 * S], 135, 405, fill=(15, 16, 20), width=2 * S)
-        dr.arc([cx - r - 2 * S, cy - r - 2 * S, cx + r + 2 * S, cy + r + 2 * S], 135, 270, fill=(143, 168, 255), width=2 * S)
-        dr.ellipse([cx - r + 2 * S, cy - r + 2 * S, cx + r - 2 * S, cy + r - 2 * S], fill=(188, 191, 198), outline=(225, 227, 232))
-        dr.line([cx, cy - 2 * S, cx, cy - r + 4 * S], fill=(20, 22, 28), width=2 * S)
-        dr.text((x + 2 * S, y), b["saved_attribute_attributes"]["valueof"]["parameter_shortname"], fill=(200, 204, 214), font=small)
-    elif k == "live.text":
-        on = b["saved_attribute_attributes"]["valueof"]["parameter_initial"][0]
-        dr.rounded_rectangle([x, y, x + w, y + h], 3 * S, fill=rgb(b["bgoncolor"]) if on else (42, 44, 50), outline=rgb(b["bordercolor"]))
-        dr.text((x + 3 * S, y + 3 * S), b["text"][:22], fill=(20, 22, 26) if on else (200, 204, 214), font=small)
-    elif k == "live.tab":
-        items = b["saved_attribute_attributes"]["valueof"]["parameter_enum"]
-        cw = w / len(items)
-        for i, t in enumerate(items):
-            dr.rectangle([x + i * cw, y, x + (i + 1) * cw - S, y + h], fill=rgb(b["bgoncolor"]) if i == 0 else (42, 44, 50))
-            dr.text((x + i * cw + 3 * S, y + 3 * S), t, fill=(20, 22, 26) if i == 0 else (200, 204, 214), font=small)
-    elif k == "live.slider" and not b.get("showname", 1):
-        pass                                # (invisible: drawn by the ADSR jsui)
-    elif k == "jsui" and "adsr" in b["filename"]:
-        vals = [0, 8, 10, 9]; labels = ["2ms", "300ms", "67%", "750ms"]
-        top, bot = y + 34 * S, y + 128 * S
-        # envelope shape
-        pts = [(x + 4 * S, y + 26 * S), (x + 14 * S, y + 4 * S), (x + 48 * S, y + 11 * S), (x + 66 * S, y + 11 * S), (x + w - 4 * S, y + 26 * S)]
-        dr.polygon(pts, fill=(48, 56, 92)); dr.line(pts, fill=(143, 168, 255), width=2 * S)
-        for i2, vv in enumerate(vals):
-            cx = x + (i2 * 28 + 14) * S
-            for t in range(16):
-                ty = bot - t / 15 * (bot - top); lg = t % 5 == 0
-                dr.rectangle([cx - (11 if lg else 9) * S, ty, cx - (6 if lg else 6) * S, ty + S - 1], fill=(150, 155, 168) if lg else (80, 84, 96))
-            dr.rounded_rectangle([cx - 2.5 * S, top - 4 * S, cx + 2.5 * S, bot + 4 * S], 3 * S, fill=(15, 16, 20))
-            cy = bot - vv / 15 * (bot - top)
-            dr.rounded_rectangle([cx - 1.5 * S, cy, cx + 1.5 * S, bot + 3 * S], 2 * S, fill=(143, 168, 255))
-            dr.rounded_rectangle([cx - 10 * S, cy - 5 * S, cx + 10 * S, cy + 5 * S], 3 * S, fill=(190, 193, 200))
-            dr.rectangle([cx - 9 * S, cy - 0.6 * S, cx + 9 * S, cy + 0.6 * S], fill=(20, 22, 28))
-            dr.text((cx - 3 * S, bot + 4 * S), "ADSR"[i2], fill=(150, 155, 168), font=small)
-            dr.text((cx - 11 * S, y + h - 9 * S), labels[i2], fill=(240, 240, 240), font=small)
-    elif k == "live.slider":
-        dr.rectangle([x + w / 2 - 3 * S, y + 10 * S, x + w / 2 + 3 * S, y + h - 12 * S], fill=(42, 44, 50), outline=(74, 78, 88))
-        dr.rectangle([x + w / 2 - 3 * S, y + h / 2, x + w / 2 + 3 * S, y + h - 12 * S], fill=(143, 168, 255))
-        dr.text((x + w / 2 - 3 * S, y + h - 10 * S), b["saved_attribute_attributes"]["valueof"]["parameter_shortname"], fill=(200, 204, 214), font=small)
-    elif k in ("live.numbox", "live.menu", "textedit"):
-        dr.rectangle([x, y, x + w, y + h], fill=(28, 29, 34), outline=(74, 78, 88))
-    elif k == "jsui" and "display" in b["filename"]:
-        dr.rounded_rectangle([x, y, x + w, y + h], 6 * S, fill=(64, 49, 141), outline=(120, 105, 196), width=2 * S)
-        dr.text((x + 8 * S, y + 6 * S), "BANK A · 01  FACTORY", fill=(169, 158, 240), font=small)
-        dr.text((x + 8 * S, y + 22 * S), "PWM LEAD", fill=(255, 255, 255), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 15 * S))
-    elif k == "jsui" and "stripes" in b["filename"]:
-        cols = [(135, 56, 51), (219, 115, 69), (237, 240, 120), (148, 224, 138), (120, 105, 196)]
-        sl = h * 0.6
-        for i, c in enumerate(cols):
-            xx = x + w - sl - (5 - i) * 9 * S
-            dr.polygon([(xx, y + h), (xx + 6 * S, y + h), (xx + 6 * S + sl, y), (xx + sl, y)], fill=c)
-    elif k == "jsui" and "logo" in b["filename"]:
-        dr.text((x + 4 * S, y + 4 * S), "⬡ SID1", fill=(240, 240, 240), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 16 * S))
-pic = os.path.join(outdir, "panel.png")
-im.save(pic)
+def render(boxlist, fname):
+    im = Image.new("RGB", (W * S, H * S), (30, 32, 37))
+    dr = ImageDraw.Draw(im)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 8 * S)
+        small = ImageFont.truetype("DejaVuSans.ttf", 6 * S)
+    except OSError:
+        font = small = ImageFont.load_default()
+    rgb = lambda c: tuple(int(v * 255) for v in c[:3])
+    for b in boxlist:
+        b = b["box"]
+        if not b.get("presentation") or b.get("hidden"):
+            continue
+        x, y, w, h = [v * S for v in b["presentation_rect"]]
+        k = b["maxclass"]
+        if k == "panel":
+            dr.rectangle([x, y, x + w - 1, y + h - 1], fill=rgb(b["bgcolor"]))
+        elif k == "live.comment":
+            dr.text((x, y), b["text"][:40], fill=rgb(b["textcolor"]), font=font if b.get("fontface") else small)
+        elif k == "live.dial":
+            r = min(w, h - 16 * S) / 2 - S
+            cx, cy = x + w / 2, y + 10 * S + r
+            dr.arc([cx - r - 2 * S, cy - r - 2 * S, cx + r + 2 * S, cy + r + 2 * S], 135, 405, fill=(15, 16, 20), width=2 * S)
+            dr.arc([cx - r - 2 * S, cy - r - 2 * S, cx + r + 2 * S, cy + r + 2 * S], 135, 270, fill=(143, 168, 255), width=2 * S)
+            dr.ellipse([cx - r + 2 * S, cy - r + 2 * S, cx + r - 2 * S, cy + r - 2 * S], fill=(188, 191, 198), outline=(225, 227, 232))
+            dr.line([cx, cy - 2 * S, cx, cy - r + 4 * S], fill=(20, 22, 28), width=2 * S)
+            dr.text((x + 2 * S, y), b["saved_attribute_attributes"]["valueof"]["parameter_shortname"], fill=(200, 204, 214), font=small)
+        elif k == "live.text":
+            on = b["saved_attribute_attributes"]["valueof"]["parameter_initial"][0]
+            dr.rounded_rectangle([x, y, x + w, y + h], 3 * S, fill=rgb(b["bgoncolor"]) if on else (42, 44, 50), outline=rgb(b["bordercolor"]))
+            dr.text((x + 3 * S, y + 3 * S), b["text"][:22], fill=(20, 22, 26) if on else (200, 204, 214), font=small)
+        elif k == "live.tab":
+            items = b["saved_attribute_attributes"]["valueof"]["parameter_enum"]
+            cw = w / len(items)
+            for i, t in enumerate(items):
+                dr.rectangle([x + i * cw, y, x + (i + 1) * cw - S, y + h], fill=rgb(b["bgoncolor"]) if i == 0 else (42, 44, 50))
+                dr.text((x + i * cw + 3 * S, y + 3 * S), t, fill=(20, 22, 26) if i == 0 else (200, 204, 214), font=small)
+        elif k == "live.slider" and not b.get("showname", 1):
+            pass                                # (invisible: drawn by the ADSR jsui)
+        elif k == "jsui" and "adsr" in b["filename"]:
+            vals = [0, 8, 10, 9]; labels = ["2ms", "300ms", "67%", "750ms"]
+            top, bot = y + 34 * S, y + 128 * S
+            # envelope shape
+            pts = [(x + 4 * S, y + 26 * S), (x + 14 * S, y + 4 * S), (x + 48 * S, y + 11 * S), (x + 66 * S, y + 11 * S), (x + w - 4 * S, y + 26 * S)]
+            dr.polygon(pts, fill=(48, 56, 92)); dr.line(pts, fill=(143, 168, 255), width=2 * S)
+            for i2, vv in enumerate(vals):
+                cx = x + (i2 * 28 + 14) * S
+                for t in range(16):
+                    ty = bot - t / 15 * (bot - top); lg = t % 5 == 0
+                    dr.rectangle([cx - (11 if lg else 9) * S, ty, cx - (6 if lg else 6) * S, ty + S - 1], fill=(150, 155, 168) if lg else (80, 84, 96))
+                dr.rounded_rectangle([cx - 2.5 * S, top - 4 * S, cx + 2.5 * S, bot + 4 * S], 3 * S, fill=(15, 16, 20))
+                cy = bot - vv / 15 * (bot - top)
+                dr.rounded_rectangle([cx - 1.5 * S, cy, cx + 1.5 * S, bot + 3 * S], 2 * S, fill=(143, 168, 255))
+                dr.rounded_rectangle([cx - 10 * S, cy - 5 * S, cx + 10 * S, cy + 5 * S], 3 * S, fill=(190, 193, 200))
+                dr.rectangle([cx - 9 * S, cy - 0.6 * S, cx + 9 * S, cy + 0.6 * S], fill=(20, 22, 28))
+                dr.text((cx - 3 * S, bot + 4 * S), "ADSR"[i2], fill=(150, 155, 168), font=small)
+                dr.text((cx - 11 * S, y + h - 9 * S), labels[i2], fill=(240, 240, 240), font=small)
+        elif k == "live.slider":
+            dr.rectangle([x + w / 2 - 3 * S, y + 10 * S, x + w / 2 + 3 * S, y + h - 12 * S], fill=(42, 44, 50), outline=(74, 78, 88))
+            dr.rectangle([x + w / 2 - 3 * S, y + h / 2, x + w / 2 + 3 * S, y + h - 12 * S], fill=(143, 168, 255))
+            dr.text((x + w / 2 - 3 * S, y + h - 10 * S), b["saved_attribute_attributes"]["valueof"]["parameter_shortname"], fill=(200, 204, 214), font=small)
+        elif k in ("live.numbox", "live.menu", "textedit"):
+            dr.rectangle([x, y, x + w, y + h], fill=(28, 29, 34), outline=(74, 78, 88))
+        elif k == "jsui" and "display" in b["filename"]:
+            dr.rounded_rectangle([x, y, x + w, y + h], 6 * S, fill=(64, 49, 141), outline=(120, 105, 196), width=2 * S)
+            dr.text((x + 8 * S, y + 6 * S), "BANK A · 01  FACTORY", fill=(169, 158, 240), font=small)
+            dr.text((x + 8 * S, y + 22 * S), "PWM LEAD", fill=(255, 255, 255), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 15 * S))
+        elif k == "jsui" and "rresult" in b["filename"]:
+            dr.rounded_rectangle([x, y, x + w, y + 44 * S], 6 * S, fill=(64, 49, 141), outline=(120, 105, 196), width=2 * S)
+            dr.text((x + 8 * S, y + 5 * S), "ROLL 3 OF 5", fill=(169, 158, 240), font=small)
+            dr.text((x + w - 60 * S, y + 5 * S), "NOT SAVED", fill=(255, 179, 71), font=small)
+            dr.text((x + 8 * S, y + 18 * S), "BASS 07", fill=(255, 255, 255), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 15 * S))
+            tx = x
+            for t, lk in (("SAW+PUL", 0), ("LP 96 R9", 0), ("ENV LOCKED", 1)):
+                tw = len(t) * 5 * S + 8 * S
+                dr.rounded_rectangle([tx, y + 50 * S, tx + tw, y + 62 * S], 3 * S, fill=(58, 46, 24) if lk else (42, 44, 50))
+                dr.text((tx + 4 * S, y + 51 * S), t, fill=(255, 179, 71) if lk else (240, 240, 240), font=small)
+                tx += tw + 4 * S
+        elif k == "jsui" and "rhist" in b["filename"]:
+            cw = (w - 7 * 3 * S) / 8
+            for i2 in range(8):
+                xx = x + i2 * (cw + 3 * S)
+                dr.rounded_rectangle([xx, y, xx + cw, y + h], 3 * S, fill=(58, 46, 24) if i2 == 3 else (42, 44, 50) if i2 < 5 else (28, 29, 34),
+                                     outline=(255, 179, 71) if i2 == 3 else (74, 78, 88))
+        elif k == "jsui" and "stripes" in b["filename"]:
+            cols = [(135, 56, 51), (219, 115, 69), (237, 240, 120), (148, 224, 138), (120, 105, 196)]
+            sl = h * 0.6
+            for i, c in enumerate(cols):
+                xx = x + w - sl - (5 - i) * 9 * S
+                dr.polygon([(xx, y + h), (xx + 6 * S, y + h), (xx + 6 * S + sl, y), (xx + sl, y)], fill=c)
+        elif k == "jsui" and "logo" in b["filename"]:
+            dr.text((x + 4 * S, y + 4 * S), "⬡ SID1", fill=(240, 240, 240), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 16 * S))
+    im.save(fname)
+    return fname
+
+pic = render(j["patcher"]["boxes"], os.path.join(outdir, "panel.png"))
+_rp = [b["box"] for b in j["patcher"]["boxes"] if b["box"].get("varname") == "randpanel"]
+rpic = render(_rp[0]["patcher"]["boxes"], os.path.join(outdir, "random.png")) if _rp else None
 
 # ---- styles
 BL = colors.HexColor("#40318D")
@@ -232,6 +254,7 @@ story = [
     chapter("The Panel",
             table([["Section", "What it does"],
                    ["Brand", "CHIP: 6581 or 8580. POLY (six voices) or MONO (one voice, legato). 2X: oversampling, a cleaner top end for more CPU. VOL: output level. BEND: pitch bend range in semitones. ABOUT: version and credits. The store link opens ticcoross.gumroad.com."],
+                   ["RANDOM", "Opens the RANDOM panel: new patches by the rules. See the chapter Random."],
                    ["Preset", "The display shows bank, slot, name, and EDITED when the sound differs from its slot. See Presets."],
                    ["Oscillator", "TRI, SAW, PUL, NOI: the waveforms (combine them for the SID's mixed waves). RING: ring modulation. SYNC: hard sync. HARD: hard restart, which makes every note attack cleanly. PW: pulse width. SPEED, MIN, MAX: the pulse-width sweep."],
                    ["Envelope", "Attack, Decay, Sustain, Release in the chip's 16 steps, shown as the real SID times: attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain as a level in %. Above the faders, a drawing shows the envelope's shape as you move them."],
@@ -249,6 +272,28 @@ story = [
              "EXP saves the current bank to a text file. IMP loads a bank file into the current bank, to back up or share sounds."],
             "Your presets are saved with the Live Set and in Live device presets, so they travel with your projects. "
             "The preset number can be automated, to change sounds during a song."),
+    chapter("Random: New Patches by the Rules",
+            "Press <b>RANDOM</b> (top of the PRESET section) to open the RANDOM panel over the device; CLOSE hides it. "
+            "A roll is not a throw of the dice on every control: it builds a patch for the chosen sound type inside that "
+            "type's safe ranges, follows the SID's own limits (always a waveform, never a silent pulse width, filters that "
+            "let the sound through, playable wavetable notes), and is never silent, clipping or broken.",
+            RLImage(rpic, width=img_w, height=img_w * H / W) if rpic else Spacer(1, 1),
+            Paragraph("Figure 2. The RANDOM panel.", st["cap"]),
+            table([["Control", "What it does"],
+                   ["SOUND TYPE", "LEAD, BASS, PAD, PLUCK, ARP, DRUM, FX or ANY. Each has its own ranges: a BASS is low with the filter on, a PAD slow with a moving pulse, a DRUM a kick, snare, hat or tom built in the wavetable."],
+                   ["CHIP FOR THE ROLL", "KEEP the device's chip, roll for the 6581 or the 8580, or ANY (chosen per roll)."],
+                   ["AMOUNT", "Low values nudge the current sound into a variation; high values build a new sound."],
+                   ["BRIGHT, MOTION, LENGTH", "Steer the roll: darker or brighter waves and cutoff; more or less movement (sweeps, vibrato); shorter or longer envelopes."],
+                   ["LOCK", "Keep a section as it is: OSC, ENV, FILTER, PITCH, WTABLE."],
+                   ["ARP CHORDS", "The chords an ARP roll may use: major, minor, sus, or any."],
+                   ["ROLL, MUTATE", "ROLL makes a new sound; MUTATE makes a small variation of the last roll."],
+                   ["UNDO, REDO, HISTORY", "Step through the last 8 rolls, or click a cell (O is the sound before the first roll)."],
+                   ["AUTO", "Roll on every note (NOTE) or every few bars while Live plays (BARS)."],
+                   ["KEEP, PREVIEW", "KEEP saves the roll in the next free preset slot (shown under the screen). PREVIEW plays a note."]],
+                  [34 * mm, img_w - 34 * mm]),
+            Spacer(1, 4),
+            "A roll replaces the sound being edited, like turning the knobs: SAVE or KEEP it to keep it. ROLL can be "
+            "MIDI-mapped, to roll new sounds from a pad while you play."),
     chapter("Tips",
             ["Arpeggio chords from one key: wavetable LENGTH 3, notes 0, 4, 7, LOOP 1. See factory ARP MAJOR.",
              "Drums: a first step of NOI with a high ABS note, then TRI or PUL steps falling in pitch. See KICK and SNARE.",
@@ -269,7 +314,9 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=cover, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.0.5", ["Every knob redrawn in the style of the envelope faders: metal caps with a pointer, a lit arc and tick dots; bipolar knobs light from the centre."]),
+HISTORY = [("1.1.0", ["RANDOM panel: new patches by the rules for 8 sound types, with AMOUNT, BRIGHT, MOTION, LENGTH, section locks, arp chords, chip choice, mutate, undo/redo and an 8-roll history, auto roll on notes or bars, keep to the next free slot, and preview.",
+                      "Tested: thousands of rolls on both chips, none silent, clipping or broken."]),
+           ("1.0.5", ["Every knob redrawn in the style of the envelope faders: metal caps with a pointer, a lit arc and tick dots; bipolar knobs light from the centre."]),
            ("1.0.4", ["New envelope faders: recessed slots with a scale, lit fill and metal caps, the SID times below, and a live drawing of the envelope shape above."]),
            ("1.0.3", ["Manual: new cover, a chapter on the SID chip and its history, and a comparison of the 6581 and 8580 models."]),
            ("1.0.2", ["The envelope faders no longer cover a help text from the oscillator section."]),

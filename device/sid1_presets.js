@@ -6,10 +6,12 @@
 //       nfactory n | factoryname i sym | patch <name> <38 ints>   (from sid1~)
 //       <stored string>                                            (from the pattr)
 //       ready                                                      (after loading: allow loads)
+//       rolled <name>  (a RANDOM roll is playing)   keepnew  (keep it in the next free slot)
 // out : 0 -> sid1~   1 -> display jsui   2 -> pattr   3 -> preset number (live.numbox)   4 -> name field (textedit)
+//       5 -> RANDOM panel ("free <slot>": where KEEP will go)
 autowatch = 0;
 inlets = 1;
-outlets = 5;
+outlets = 6;
 
 var NSLOT = 128, BANK = 32, NB = 38;
 var lib = [];                 // user slots: {n: name, b: [38]} or undefined
@@ -37,7 +39,15 @@ function show() {
 // ---- persistence: "H,cur,edited,name|i,name,hex|..." (names: spaces as _)
 function hex(b) { var s = "", i; for (i = 0; i < b.length; i++) s += ("0" + (b[i] & 255).toString(16)).slice(-2); return s; }
 function unhex(s) { var b = [], i; for (i = 0; i + 1 < s.length; i += 2) b.push(parseInt(s.substr(i, 2), 16)); return b; }
+function slotLabel(i) { return "ABCD".charAt(Math.floor(i / BANK)) + ((i % BANK) + 1); }
+function nextFree() {
+    var i, k;
+    for (k = 0; k < NSLOT; k++) { i = (cur + k) % NSLOT; if (!used(i)) return i; }
+    return -1;
+}
+function reportFree() { var f = nextFree(); outlet(5, "free", f < 0 ? "FULL" : slotLabel(f)); }
 function store() {
+    reportFree();
     var parts = ["H," + cur + "," + edited + "," + name.replace(/ /g, "_")], i;
     for (i = 0; i < NSLOT; i++) if (lib[i]) parts.push(i + "," + lib[i].n.replace(/ /g, "_") + "," + hex(lib[i].b));
     outlet(2, parts.join("|"));
@@ -106,6 +116,26 @@ function save() {
     edited = 0;
     show();
     store();
+}
+function rolled() {
+    var a = arrayfromargs(arguments);
+    cmpOn = 0; editBuf = null;
+    name = clampName(a.join(" "));
+    edited = 1;
+    outlet(4, ["set"].concat(name.split(" ")));
+    show();
+    store();
+}
+function keepnew() {
+    var f = nextFree(), p;
+    if (f < 0) { post("SID1: no free preset slot\n"); return; }
+    p = grab();
+    if (!p) return;
+    lib[f] = { n: name, b: p.b };
+    cur = f;
+    edited = 0;
+    store();
+    outlet(3, f);                          // the preset number follows (it loads the slot just kept: the same sound)
 }
 function init() { outlet(0, "init"); name = "INIT"; outlet(0, "name", name); outlet(4, ["set"].concat(name.split(" "))); edited = 1; show(); store(); }
 

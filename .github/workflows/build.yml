@@ -16,6 +16,8 @@ jobs:
         run: |
           cc -O2 -Wall -std=c99 tests/render_test.c engine/sid1_engine.c core/sid.c -lm -o render_test
           ./render_test && ./render_test 2x
+          cc -O2 -Wall -std=c99 tests/random_test.c engine/sid1_random.c engine/sid1_engine.c core/sid.c -lm -o random_test
+          ./random_test
 
   mac:
     runs-on: macos-15

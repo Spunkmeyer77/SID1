@@ -17,6 +17,9 @@
  *   factory <0..n-1>               load a factory patch (then dumps it)
  *   dump                           output the current patch
  *   nfactory                       output the number of factory patches
+ *   roll <type> <amount> <bright> <motion> <length> <locks> <chords> <model>
+ *                                  a new patch by the randomizer's rules (engine/sid1_random.c), then dumps it;
+ *                                  outputs "rolled <type name>" first
  *
  * Outlets: signal (mono, the two chips mixed), then info:
  *   patch <name> <38 ints>, then one "<field> <value>" per field, "name <sym>", "nfactory <n>", "factoryname <i> <sym>"
@@ -28,6 +31,7 @@
 #include "z_dsp.h"
 #include "ext_critical.h"
 #include "../../engine/sid1_engine.h"
+#include "../../engine/sid1_random.h"
 #include <string.h>
 
 #define QLEN 512u                                /* power of two */
@@ -44,6 +48,7 @@ typedef struct _sid1 {
     ev_t q[QLEN];
     volatile unsigned int qw, qr;
     double sr;
+    uint32_t seed;
     float *buf;
     long buflen;
 } t_sid1;
@@ -262,6 +267,31 @@ static void m_nfactory(t_sid1 *x)
     }
 }
 
+static void m_roll(t_sid1 *x, t_symbol *s, long argc, t_atom *argv)
+{
+    sid1_roll_t r;
+    sid1_patch_t out;
+    t_atom a;
+    int used;
+    (void)s;
+    if (argc < 8) { object_error((t_object *)x, "roll: type amount bright motion length locks chords model"); return; }
+    r.type = (int)atom_getlong(argv);
+    r.amount = (float)atom_getfloat(argv + 1);
+    r.bright = (float)atom_getfloat(argv + 2);
+    r.motion = (float)atom_getfloat(argv + 3);
+    r.length = (float)atom_getfloat(argv + 4);
+    r.locks = (int)atom_getlong(argv + 5);
+    r.chords = (int)atom_getlong(argv + 6);
+    r.model = atom_getlong(argv + 7) ? SID_8580 : SID_6581;
+    used = sid1_roll(&out, &x->p, &r, &x->seed);
+    memcpy(out.name, x->p.name, sizeof out.name);
+    x->p = out;
+    push_patch(x);
+    atom_setsym(&a, gensym(SID1_RTYPE_NAMES[used]));
+    outlet_anything(x->info, gensym("rolled"), 1, &a);
+    dump(x);
+}
+
 static void m_init(t_sid1 *x) { sid1_patch_init(&x->p); push_patch(x); dump(x); }
 
 /* ---- dsp */
@@ -311,6 +341,7 @@ static void *sid1_new(t_symbol *s, long argc, t_atom *argv)
     x->p = SID1_FACTORY[0];
     sid1_set_patch(x->e, &x->p);
     x->qw = x->qr = 0;
+    x->seed = (uint32_t)systime_ms() * 2654435761u + 1u;
     x->buf = NULL;
     x->buflen = 0;
     return x;
@@ -343,6 +374,7 @@ void ext_main(void *r)
     class_addmethod(c, (method)m_nfactory, "nfactory", 0);
     class_addmethod(c, (method)dump, "dump", 0);
     class_addmethod(c, (method)m_init, "init", 0);
+    class_addmethod(c, (method)m_roll, "roll", A_GIMME, 0);
     class_addmethod(c, (method)dsp64, "dsp64", A_CANT, 0);
     class_addmethod(c, (method)assist, "assist", A_CANT, 0);
     class_dspinit(c);
