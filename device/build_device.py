@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -94,13 +94,25 @@ def comment(rect, text, color=BLUE, size=8.0, bold=True):
     return add(b)
 
 
+KNOB_UI = {}            # live.dial id -> the jsui that draws it
+
+
 def dial(rect, longname, short, lo, hi, initial, unit=0, color=BLUE, invisible=0, ptype=1):
+    """a drawn knob (sid1_knob.js) under an invisible live.dial that holds the parameter"""
+    ui = add({"maxclass": "jsui", "filename": "sid1_knob.js", "numinlets": 1, "numoutlets": 0, "outlettype": [],
+              "jsarguments": [lo, hi, initial, 1 if color == AMBER else 0, short, 1 if unit == 4 else 0],
+              "patching_rect": place(44, 50), "parameter_enable": 0, "border": 0, "ignoreclick": 1, **pres(rect)})
+    clear = [0.0, 0.0, 0.0, 0.0]
     b = {"maxclass": "live.dial", "numinlets": 1, "numoutlets": 2, "outlettype": ["", "float"],
-         "patching_rect": place(41, 48), "activedialcolor": color, "activeneedlecolor": WHITE,
-         "dialcolor": [0.23, 0.24, 0.27, 1.0], "textcolor": TEXT, "fontsize": 8.0, "showname": 1, "shownumber": 1}
+         "patching_rect": place(41, 48), "showname": 0, "shownumber": 0,
+         "activedialcolor": clear, "activeneedlecolor": clear, "dialcolor": clear, "needlecolor": clear,
+         "textcolor": clear, "focusbordercolor": clear, "fontsize": 8.0}
     b.update(pres(rect))
     b.update(param(longname, short, ptype, lo, hi, initial, invisible=invisible, unit=unit))
-    return add(b)
+    d = add(b)
+    wire(d, 0, ui)
+    KNOB_UI[d] = ui
+    return d
 
 
 def toggle(rect, longname, text, initial=0, color=BLUE, button=False, invisible=0, size=8.0):
@@ -387,6 +399,8 @@ for i, (f, ctl) in enumerate([(f, c) for f, c in FIELD_ROUTE if isinstance(f, st
     wire(rf, i, p); wire(p, 0, ctl)
     if f in ADSR_SLIDERS:
         wire(rf, i, ADSR_SLIDERS[f])
+    if ctl in KNOB_UI:
+        wire(rf, i, KNOB_UI[ctl])
 for j, wf in enumerate(["wtwave", "wtnote", "wtabsk"]):
     rk = obj("route 0 1 2 3 4 5 6 7", 1, 9)
     wire(rf, len(plain) + j, rk)
@@ -414,6 +428,7 @@ patcher = {"patcher": {
         {"name": "sid1_about.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_stripes.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_adsr.js", "type": "TEXT", "implicit": 1},
+        {"name": "sid1_knob.js", "type": "TEXT", "implicit": 1},
         ],
     "latency": 0, "is_mpe": 0, "minimum_live_version": "", "minimum_max_version": "",
     "platform_compatibility": 0, "project": {"version": 1, "creationdate": 3590052493, "modificationdate": 3590052493,

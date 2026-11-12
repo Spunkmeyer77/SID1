@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle, PageBreak)
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -38,8 +38,10 @@ for b in j["patcher"]["boxes"]:
     elif k == "live.dial":
         r = min(w, h - 16 * S) / 2 - S
         cx, cy = x + w / 2, y + 10 * S + r
-        dr.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(42, 44, 50), outline=rgb(b["activedialcolor"]), width=2 * S)
-        dr.line([cx, cy, cx, cy - r + 2 * S], fill=(240, 240, 240), width=S)
+        dr.arc([cx - r - 2 * S, cy - r - 2 * S, cx + r + 2 * S, cy + r + 2 * S], 135, 405, fill=(15, 16, 20), width=2 * S)
+        dr.arc([cx - r - 2 * S, cy - r - 2 * S, cx + r + 2 * S, cy + r + 2 * S], 135, 270, fill=(143, 168, 255), width=2 * S)
+        dr.ellipse([cx - r + 2 * S, cy - r + 2 * S, cx + r - 2 * S, cy + r - 2 * S], fill=(188, 191, 198), outline=(225, 227, 232))
+        dr.line([cx, cy - 2 * S, cx, cy - r + 4 * S], fill=(20, 22, 28), width=2 * S)
         dr.text((x + 2 * S, y), b["saved_attribute_attributes"]["valueof"]["parameter_shortname"], fill=(200, 204, 214), font=small)
     elif k == "live.text":
         on = b["saved_attribute_attributes"]["valueof"]["parameter_initial"][0]
@@ -267,7 +269,8 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=cover, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.0.4", ["New envelope faders: recessed slots with a scale, lit fill and metal caps, the SID times below, and a live drawing of the envelope shape above."]),
+HISTORY = [("1.0.5", ["Every knob redrawn in the style of the envelope faders: metal caps with a pointer, a lit arc and tick dots; bipolar knobs light from the centre."]),
+           ("1.0.4", ["New envelope faders: recessed slots with a scale, lit fill and metal caps, the SID times below, and a live drawing of the envelope shape above."]),
            ("1.0.3", ["Manual: new cover, a chapter on the SID chip and its history, and a comparison of the 6581 and 8580 models."]),
            ("1.0.2", ["The envelope faders no longer cover a help text from the oscillator section."]),
            ("1.0.1", ["The filter cutoff knob now acts at once on held notes (before, only from the next note).",
