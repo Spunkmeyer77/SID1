@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -95,6 +95,7 @@ def comment(rect, text, color=BLUE, size=8.0, bold=True):
 
 
 KNOB_UI = {}            # live.dial id -> the jsui that draws it
+KNOB_OUT = {}           # live.dial id -> the object its value leaves from
 
 
 def dial(rect, longname, short, lo, hi, initial, unit=0, color=BLUE, invisible=0, ptype=1):
@@ -108,9 +109,17 @@ def dial(rect, longname, short, lo, hi, initial, unit=0, color=BLUE, invisible=0
          "activedialcolor": clear, "activeneedlecolor": clear, "dialcolor": clear, "needlecolor": clear,
          "textcolor": clear, "focusbordercolor": clear, "fontsize": 8.0}
     b.update(pres(rect))
-    b.update(param(longname, short, ptype, lo, hi, initial, invisible=invisible, unit=unit))
+    extra = {} if ptype == 0 else {"parameter_steps": int(hi - lo + 1)}   # whole numbers, but a float range
+    b.update(param(longname, short, 0, lo, hi, initial, invisible=invisible, unit=unit if ptype == 0 else 0, extra=extra))
     d = add(b)
-    wire(d, 0, ui)
+    if ptype != 0:                       # to the engine and the drawing as whole numbers
+        r_ = obj("round 1.", 2, 1, ["float"]); i_ = obj("i", 2, 1, ["int"])
+        wire(d, 0, r_); wire(r_, 0, i_)
+        d_out = i_
+    else:
+        d_out = d
+    KNOB_OUT[d] = d_out
+    wire(d_out, 0, ui)
     KNOB_UI[d] = ui
     return d
 
@@ -214,11 +223,15 @@ for i, sel in enumerate(["patch", "nfactory", "factoryname"]):
 FIELD_ROUTE = []        # (field, control id, wt step or None)
 
 
+def out_of(ctl):
+    return KNOB_OUT.get(ctl, ctl)
+
+
 def field_ctl(ctl, field):
     """a control that edits a patch field: out -> set field -> sid1~ (as an edit); field dumps -> set control"""
     p = obj("prepend set " + field, 1, 1)
     s = obj("s ---sid1cmd", 1, 0)
-    wire(ctl, 0, p); wire(p, 0, s)
+    wire(out_of(ctl), 0, p); wire(p, 0, s)
     FIELD_ROUTE.append((field, ctl))
 
 
@@ -231,7 +244,7 @@ def wt_ctl(ctl, field, k):
 
 def direct(ctl, prefix):
     p = obj("prepend " + prefix, 1, 1)
-    wire(ctl, 0, p); wire(p, 0, sid)
+    wire(out_of(ctl), 0, p); wire(p, 0, sid)
 
 
 def to_js(ctl, message, bang=True):
@@ -264,7 +277,7 @@ direct(os2, "oversample")
 about_btn = toggle([46, 110, 40, 16], "About", "ABOUT", button=True, invisible=2)
 vol = dial([88, 62, 34, 48], "Volume", "VOL", -70, 6, 0, unit=4, ptype=0)
 dbt = obj("dbtoa", 1, 1); pg = obj("prepend gain", 1, 1)
-wire(vol, 0, dbt); wire(dbt, 0, pg); wire(pg, 0, sid)
+wire(out_of(vol), 0, dbt); wire(dbt, 0, pg); wire(pg, 0, sid)
 bendr = dial([88, 112, 34, 48], "Bend Range", "BEND", 0, 24, 2)
 direct(bendr, "bendrange")
 jsui([4, 136, 82, 26], "sid1_stripes.js")
@@ -388,34 +401,30 @@ rnd = obj("js sid1_random.js", 1, 4)
 wire(rnd, 0, sid)
 wire(rnd, 2, presets)
 wire(rnd, 3, chip)
-srndui = obj("s ---rndui", 1, 0)
-wire(rnd, 1, srndui)
-wire(presets, 5, srndui)
 pp = obj("prepend patch", 1, 1); wire(info_js, 0, pp); wire(pp, 0, rnd)
 prl = obj("prepend rolled", 1, 1); wire(info_js, 3, prl); wire(prl, 0, rnd)
 psm = obj("prepend setmodel", 1, 1); wire(chip, 0, psm); wire(psm, 0, rnd)
 pno = obj("prepend noteon", 1, 1); wire(tnote, 1, pno); wire(pno, 0, rnd)
 met = obj("metro 1m @quantize 1m @autostart 1", 2, 1, ["bang"])
 mbar = msg("bar"); wire(met, 0, mbar); wire(mbar, 0, rnd)
-rr = obj("r ---rnd", 0, 1)
-rclose = obj("route close", 1, 2)
-wire(rr, 0, rclose); wire(rclose, 1, rnd)
+rclose_in = obj("t b", 1, 1)        # CLOSE
 rnd_btn = toggle([262, 3, 57, 14], "Random", "RANDOM", button=True, invisible=2, color=AMBER)
 
-# the panel's contents, built into their own patcher
-main_boxes, main_lines = boxes, lines
-boxes, lines = [], []
+# the panel's controls live in the main patcher, hidden; RANDOM shows them over the device, CLOSE hides them.
+# (An embedded bpatcher worked in Max but not in Live, so no subpatcher and no sends.)
+RP_FIRST = len(boxes)
 panel([0, 0, W, H], [0.086, 0.09, 0.106, 1.0])
 
 
 def send_ui(ctl, prefix, bang_msg=None):
-    s_ = obj("s ---rnd", 1, 0)
-    if bang_msg:
+    if bang_msg == "close":
+        t = obj("t b", 1, 1); wire(ctl, 0, t); wire(t, 0, rclose_in)
+    elif bang_msg:
         t = obj("t b", 1, 1); m = msg(bang_msg)
-        wire(ctl, 0, t); wire(t, 0, m); wire(m, 0, s_)
+        wire(ctl, 0, t); wire(t, 0, m); wire(m, 0, rnd)
     else:
         p = obj("prepend " + prefix, 1, 1)
-        wire(ctl, 0, p); wire(p, 0, s_)
+        wire(out_of(ctl), 0, p); wire(p, 0, rnd)
 
 
 RSECT = [("SOUND TYPE", 100, 176), ("CHARACTER", 276, 180), ("LOCK", 456, 145), ("ROLL", 601, 140),
@@ -454,7 +463,7 @@ send_ui(toggle([607, 40, 62, 16], "Undo", "◀ UNDO", button=True, invisible=2),
 send_ui(toggle([672, 40, 62, 16], "Redo", "REDO ▶", button=True, invisible=2), None, "redo")
 comment([607, 62, 127, 12], "HISTORY", DIM)
 hj = jsui([607, 74, 127, 14], "sid1_rhist.js", outs=1)
-shj = obj("s ---rnd", 1, 0); wire(hj, 0, shj)
+wire(hj, 0, rnd)
 
 send_ui(tab([747, 20, 103, 16], "Auto Roll", "Auto", ["OFF", "NOTE", "BARS"], invisible=1), "auto")
 send_ui(dial([747, 40, 44, 48], "Auto Bars", "BARS", 1, 16, 4, color=AMBER, invisible=1), "bars")
@@ -465,23 +474,26 @@ rj = jsui([862, 18, 197, 96], "sid1_rresult.js")
 send_ui(toggle([862, 118, 62, 16], "Keep", "KEEP", button=True, invisible=2, color=AMBER), None, "keep")
 send_ui(toggle([928, 118, 62, 16], "Preview", "PREVIEW", button=True, invisible=2), None, "preview")
 
-rui = obj("r ---rndui", 0, 1)
 rroute = obj("route hist result free", 1, 4)
-wire(rui, 0, rroute)
+wire(rnd, 1, rroute); wire(presets, 5, rroute)
 ph = obj("prepend hist", 1, 1); wire(rroute, 0, ph); wire(ph, 0, hj)
 pr = obj("prepend result", 1, 1); wire(rroute, 1, pr); wire(pr, 0, rj)
 pf = obj("prepend free", 1, 1); wire(rroute, 2, pf); wire(pf, 0, rj)
 
-sub_boxes, sub_lines = boxes, lines
-boxes, lines = main_boxes, main_lines
-rpanel = add({"maxclass": "bpatcher", "embed": 1, "numinlets": 0, "numoutlets": 0, "bgmode": 0, "border": 0,
-              "clickthrough": 0, "enablehscroll": 0, "enablevscroll": 0, "lockeddragscroll": 0, "offset": [0.0, 0.0],
-              "viewvisibility": 1, "hidden": 1, "varname": "randpanel", "patching_rect": place(200, 60),
-              "patcher": {"fileversion": 1, "appversion": {"major": 8, "minor": 6, "revision": 5, "architecture": "x64", "modernui": 1},
-                          "classnamespace": "box", "rect": [0, 0, W, H], "openinpresentation": 1, "default_fontsize": 10.0,
-                          "default_fontface": 0, "default_fontname": "Arial Bold", "gridsize": [8.0, 8.0],
-                          "boxes": sub_boxes, "lines": sub_lines},
-              **pres([0, 0, W, H])})
+RP_NAMES = []
+for bx in boxes[RP_FIRST:]:
+    bb = bx["box"]
+    if bb.get("presentation"):
+        bb["hidden"] = 1
+        if bb.get("maxclass") == "panel":       # on top of the main panel's controls, not in the background layer
+            bb["background"] = 0
+            if bb["presentation_rect"][2] == W:
+                bb["ignoreclick"] = 0           # the backdrop takes the clicks the panel's controls don't
+        if "varname" not in bb:
+            bb["varname"] = "rp%d" % len(RP_NAMES)
+        RP_NAMES.append(bb["varname"])
+sub_boxes, sub_lines = [], []
+
 
 # about overlay (hidden until ABOUT)
 about = jsui([0, 0, W, H], "sid1_about.js", outs=1, varname="about", hidden=1)
@@ -492,10 +504,10 @@ mhide = msg("script hide about")
 wire(about_btn, 0, tab_); wire(tab_, 0, mshow); wire(mshow, 0, tp)
 wire(about, 0, mhide); wire(mhide, 0, tp)
 trn = obj("t b", 1, 1)
-mrshow = msg("script show randpanel, script bringtofront randpanel")
-mrhide = msg("script hide randpanel")
+mrshow = msg(", ".join("script show %s, script bringtofront %s" % (n, n) for n in RP_NAMES))
+mrhide = msg(", ".join("script hide %s" % n for n in RP_NAMES))
 wire(rnd_btn, 0, trn); wire(trn, 0, mrshow); wire(mrshow, 0, tp)
-wire(rclose, 0, mrhide); wire(mrhide, 0, tp)
+wire(rclose_in, 0, mrhide); wire(mrhide, 0, tp)
 
 # field dumps from sid1~ back to the controls (set: no output, no edit)
 plain = [f for f, _ in FIELD_ROUTE if isinstance(f, str)]

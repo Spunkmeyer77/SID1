@@ -57,7 +57,7 @@ function doRoll(amt, t) {
     m = chipFor();
     last = null;
     outlet(0, "roll", t, amt / 100, st.bright / 100, st.motion / 100, st.length / 100, st.locks, st.chords, m);
-    if (!last) return;
+    if (!last) { post("SID1: the sid1~ external did not answer ROLL - replace it with the one from the SID1 kit\n"); return; }
     name = nameFor(lastType);
     outlet(0, "name", name);
     hlist = hlist.slice(0, idx + 1);

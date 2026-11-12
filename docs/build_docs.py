@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle, PageBreak)
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -113,8 +113,11 @@ def render(boxlist, fname):
     return fname
 
 pic = render(j["patcher"]["boxes"], os.path.join(outdir, "panel.png"))
-_rp = [b["box"] for b in j["patcher"]["boxes"] if b["box"].get("varname") == "randpanel"]
-rpic = render(_rp[0]["patcher"]["boxes"], os.path.join(outdir, "random.png")) if _rp else None
+_rp = []
+for b in j["patcher"]["boxes"]:              # the RANDOM panel: the hidden controls (not the About overlay)
+    if b["box"].get("hidden") and b["box"].get("varname") != "about":
+        bb = dict(b["box"]); bb.pop("hidden"); _rp.append({"box": bb})
+rpic = render(_rp, os.path.join(outdir, "random.png")) if _rp else None
 
 # ---- styles
 BL = colors.HexColor("#40318D")
@@ -314,7 +317,10 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=cover, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.1.0", ["RANDOM panel: new patches by the rules for 8 sound types, with AMOUNT, BRIGHT, MOTION, LENGTH, section locks, arp chords, chip choice, mutate, undo/redo and an 8-roll history, auto roll on notes or bars, keep to the next free slot, and preview.",
+HISTORY = [("1.1.1", ["RANDOM panel works inside Live (before, it only answered when the device was open in Max).",
+                      "Knobs show and send their full range: PW goes up to 4095, and the RANDOM knobs start where they should (AMOUNT 100, BRIGHT 0, MOTION 50, LENGTH 0, BARS 4).",
+                      "A clear message in the Max console if the sid1~ external is older than the device."]),
+           ("1.1.0", ["RANDOM panel: new patches by the rules for 8 sound types, with AMOUNT, BRIGHT, MOTION, LENGTH, section locks, arp chords, chip choice, mutate, undo/redo and an 8-roll history, auto roll on notes or bars, keep to the next free slot, and preview.",
                       "Tested: thousands of rolls on both chips, none silent, clipping or broken."]),
            ("1.0.5", ["Every knob redrawn in the style of the envelope faders: metal caps with a pointer, a lit arc and tick dots; bipolar knobs light from the centre."]),
            ("1.0.4", ["New envelope faders: recessed slots with a scale, lit fill and metal caps, the SID times below, and a live drawing of the envelope shape above."]),
