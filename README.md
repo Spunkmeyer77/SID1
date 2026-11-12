@@ -17,3 +17,7 @@ Dual MOS SID (6581/8580) synth for Max for Live, with AU/VST3 to follow. Based o
 ## Licence
 
 GPL-3.0-only (see `LICENSE`). The SID core is GPL-2.0-or-later. The player is ported from SID-1's `firmware/src/sid1.c` (GPL-3.0-only, the SID-1 authors).
+
+## Device
+
+`device/build_device.py` writes `SID1.amxd` (a Max for Live instrument); the panel scripts are `device/*.js`. `docs/build_docs.py` writes the user manual and update history. CI bundles the device, scripts, both externals and the PDFs as `SID1-<version>-device-kit.zip`; a `v*` tag publishes it as a release.

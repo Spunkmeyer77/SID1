@@ -66,9 +66,43 @@ jobs:
           name: sid1-windows
           path: sid1-windows.zip
 
+  device:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          merge-multiple: true
+      - name: Build the device and the PDFs
+        run: |
+          pip install reportlab pillow
+          python3 device/build_device.py SID1.amxd
+          python3 docs/build_docs.py SID1.amxd docs-out
+      - name: Device kit (unfrozen device + scripts + both externals + docs)
+        run: |
+          V=$(grep -m1 '^VERSION' device/build_device.py | cut -d'"' -f2)
+          K="SID1-$V-device-kit"
+          mkdir -p "$K"
+          cp SID1.amxd device/*.js "$K"/
+          unzip -q sid1-mac.zip -d "$K"
+          unzip -q sid1-windows.zip -d "$K"
+          cp "docs-out/SID1 User Manual.pdf" "docs-out/SID1 Update History.pdf" "$K"/
+          zip -qr "$K.zip" "$K"
+          cp "docs-out/SID1 User Manual.pdf" SID1-User-Manual.pdf
+          cp "docs-out/SID1 Update History.pdf" SID1-Update-History.pdf
+          ls -la "$K"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sid1-device
+          path: |
+            SID1-*-device-kit.zip
+            SID1-User-Manual.pdf
+            SID1-Update-History.pdf
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, mac, windows]
+    needs: [test, mac, windows, device]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,5 +113,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: |
+            SID1-*-device-kit.zip
+            SID1-User-Manual.pdf
+            SID1-Update-History.pdf
             sid1-mac.zip
             sid1-windows.zip

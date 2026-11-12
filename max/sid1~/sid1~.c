@@ -94,7 +94,11 @@ static const field_t FIELDS[] = {
     {"transpose", -48, 48}, {"fine", -100, 100},
     {"vibdelay", 0, 255}, {"vibspeed", 0, 255}, {"vibdepth", 0, 255},
     {"wtlen", 0, SID1_WT_MAX}, {"wtloop", 0, SID1_WT_MAX}, {"wtabs", 0, 255},
+    {"tri", 0, 1}, {"saw", 0, 1}, {"pul", 0, 1}, {"noi", 0, 1},   /* single bits of wave, for buttons */
+    {"lp", 0, 1}, {"bp", 0, 1}, {"hp", 0, 1},                     /* single bits of fmode */
 };
+/* wavetable step waveform as a menu index: none, TRI, SAW, PUL, NOI, S+T, P+T, P+S, P+S+T */
+static const uint8_t WTWAVE[9] = {0, 1, 2, 4, 8, 3, 5, 6, 7};
 #define NFIELDS ((int)(sizeof FIELDS / sizeof FIELDS[0]))
 
 static int field_get(const sid1_patch_t *p, int i)
@@ -108,6 +112,8 @@ static int field_get(const sid1_patch_t *p, int i)
     case 18: return p->transpose; case 19: return p->fine;
     case 20: return p->vib_delay; case 21: return p->vib_speed; case 22: return p->vib_depth;
     case 23: return p->wt_len; case 24: return p->wt_loop; case 25: return p->wt_abs;
+    case 26: case 27: case 28: case 29: return (p->wave >> (4 + i - 26)) & 1;
+    case 30: case 31: case 32: return (p->mode >> (4 + i - 30)) & 1;
     }
     return 0;
 }
@@ -143,6 +149,8 @@ static void field_set(sid1_patch_t *p, int i, int v)
     case 23: p->wt_len = (uint8_t)v; break;
     case 24: p->wt_loop = (uint8_t)v; break;
     case 25: p->wt_abs = (uint8_t)v; break;
+    case 26: case 27: case 28: case 29: p->wave = (uint8_t)((p->wave & ~(1 << (4 + i - 26))) | (v << (4 + i - 26))); break;
+    case 30: case 31: case 32: p->mode = (uint8_t)((p->mode & ~(1 << (4 + i - 30))) | (v << (4 + i - 30))); break;
     }
 }
 
@@ -161,6 +169,12 @@ static void dump(t_sid1 *x)
     for (i = 0; i < SID1_WT_MAX; i++) {
         atom_setlong(a, i); atom_setlong(a + 1, x->p.wt_ctl[i] >> 4); outlet_anything(x->info, gensym("wtctl"), 2, a);
         atom_setlong(a + 1, (int8_t)x->p.wt_note[i]); outlet_anything(x->info, gensym("wtnote"), 2, a);
+        atom_setlong(a + 1, (x->p.wt_abs >> i) & 1); outlet_anything(x->info, gensym("wtabsk"), 2, a);
+        {
+            long w, nib = x->p.wt_ctl[i] >> 4, idx = 0;
+            for (w = 0; w < 9; w++) if (WTWAVE[w] == nib) idx = w;
+            atom_setlong(a + 1, idx); outlet_anything(x->info, gensym("wtwave"), 2, a);
+        }
     }
     atom_setsym(a, gensym(nm[0] ? nm : "INIT"));
     outlet_anything(x->info, gensym("name"), 1, a);
@@ -188,6 +202,14 @@ static void m_set(t_sid1 *x, t_symbol *s, long argc, t_atom *argv)
     (void)s;
     if (argc < 2 || atom_gettype(argv) != A_SYM) return;
     f = atom_getsym(argv);
+    if ((f == gensym("wtwave") || f == gensym("wtabsk")) && argc >= 3) {
+        long k = atom_getlong(argv + 1), v = atom_getlong(argv + 2);
+        if (k < 0 || k >= SID1_WT_MAX) return;
+        if (f == gensym("wtwave")) x->p.wt_ctl[k] = (uint8_t)(WTWAVE[v < 0 ? 0 : v > 8 ? 8 : v] << 4);
+        else x->p.wt_abs = (uint8_t)((x->p.wt_abs & ~(1u << k)) | ((v ? 1u : 0u) << k));
+        push_patch(x);
+        return;
+    }
     if ((f == gensym("wtctl") || f == gensym("wtnote")) && argc >= 3) {
         long k = atom_getlong(argv + 1), v = atom_getlong(argv + 2);
         if (k < 0 || k >= SID1_WT_MAX) return;
