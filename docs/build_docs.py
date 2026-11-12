@@ -7,9 +7,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle)
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle, PageBreak)
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -117,9 +117,43 @@ def footer(c, doc):
     c.restoreState()
 
 
+def cover(c, doc):
+    """page 1: a dark cover with the C64 rainbow, the Transistor Labs hexagon and the title"""
+    import math
+    pw, ph = A4
+    c.saveState()
+    c.setFillColor(colors.HexColor("#15161A")); c.rect(0, 0, pw, ph, stroke=0, fill=1)
+    cols = ["#873833", "#DB7345", "#EDF078", "#94E08A", "#7869C4"]
+    sw, gap, x0 = 16 * mm, 4 * mm, pw * 0.42
+    for i, col in enumerate(cols):
+        x = x0 + i * (sw + gap)
+        c.setFillColor(colors.HexColor(col))
+        p = c.beginPath(); p.moveTo(x, 0); p.lineTo(x + sw, 0); p.lineTo(x + sw + pw * 0.45, ph); p.lineTo(x + pw * 0.45, ph); p.close()
+        c.drawPath(p, stroke=0, fill=1)
+    c.setFillColor(colors.HexColor("#40318D")); c.rect(0, ph * 0.30, pw, ph * 0.40, stroke=0, fill=1)
+    cx, cy, r = 34 * mm, ph * 0.61, 13 * mm
+    c.setStrokeColor(colors.white); c.setLineWidth(3)
+    p = c.beginPath()
+    for i in range(6):
+        a = math.pi / 3 * i + math.pi / 2
+        (p.moveTo if i == 0 else p.lineTo)(cx + r * math.cos(a), cy + r * math.sin(a))
+    p.close(); c.drawPath(p, stroke=1, fill=0)
+    c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 20); c.drawCentredString(cx, cy - 7, "TR")
+    c.setFont("Courier-Bold", 96); c.drawString(20 * mm, ph * 0.43, "SID1")
+    c.setFont("Helvetica", 15); c.setFillColor(colors.HexColor("#C9C4F5"))
+    c.drawString(21 * mm, ph * 0.38, "Dual MOS SID synthesizer for Max for Live")
+    c.drawString(21 * mm, ph * 0.38 - 20, "User Manual \u2014 version %s" % VERSION)
+    for i, col in enumerate(cols):
+        c.setFillColor(colors.HexColor(col)); c.rect(0, ph * 0.30 - (i + 1) * 3 * mm, pw, 3 * mm, stroke=0, fill=1)
+    c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 13); c.drawString(20 * mm, 22 * mm, "Transistor Labs")
+    c.setFillColor(colors.HexColor("#FFB347")); c.setFont("Helvetica", 11); c.drawString(20 * mm, 16 * mm, "ticcoross.gumroad.com")
+    c.restoreState()
+
+
 P = lambda s: Paragraph(s, st["p"])
 img_w = A4[0] - 36 * mm
 story = [
+    PageBreak(),
     Paragraph("SID1", st["title"]),
     Paragraph("Dual MOS SID synthesizer for Ableton Live — User Manual, version %s" % VERSION, st["sub"]),
     Spacer(1, 8),
@@ -132,6 +166,36 @@ story = [
             "Sounds are played the way C64 music players played them: 50 times a second, SID1 updates each voice's "
             "pulse width, filter cutoff, vibrato and wavetable. That is where the classic arpeggios, drum sounds and "
             "sweeping leads come from."),
+    chapter("What Is a SID?",
+            "The SID (Sound Interface Device) is the sound chip of the Commodore 64, the best-selling home computer of all "
+            "time. It was designed in 1981 by Bob Yannes at MOS Technology, Commodore's chip maker, and arrived in the C64 "
+            "in 1982. Yannes, a synthesizer enthusiast, built it as a small synth on a chip rather than the simple beepers "
+            "of other computers of the time; he later co-founded the synth maker Ensoniq.",
+            "Each SID has three voices. Every voice has an oscillator with four waveforms (triangle, sawtooth, pulse with "
+            "variable width, and noise), its own ADSR envelope, ring modulation and hard sync. The three voices share one "
+            "analogue multimode filter (low-pass, band-pass, high-pass) with resonance. Three voices is not much, so C64 "
+            "composers learned tricks: fast arpeggios that sound like chords, drums built from a frame of noise and a "
+            "falling pitch, pulse-width sweeps for movement, and the filter swept by software.",
+            "Composers such as Rob Hubbard, Martin Galway, Ben Daglish, Chris H\u00fclsbeck and Jeroen Tel turned these "
+            "limits into a style of their own in 1980s game music. The demoscene kept it alive, and the SID sound is still "
+            "loved today in chiptune, electro and techno. SID1 plays the chip the way those composers did: a player program "
+            "updates every voice 50 times a second, the PAL C64's screen rate."),
+    chapter("The Two SID Chips: 6581 and 8580",
+            "The C64 was built with two different SID chips, and they sound clearly different. Musicians have strong "
+            "preferences, so SID1 lets you choose with the CHIP switch.",
+            table([["", "6581 (1982\u201386)", "8580 (from 1986, C64C)"],
+                   ["Filter", "Analogue and imprecise: dark, gritty, slightly distorted. Real chips varied from one to another.",
+                    "Cleaner and more predictable, with stronger, sharper resonance. More \u201csynth-like\u201d."],
+                   ["DC offset", "Strong. A side effect let programmers play drum samples through the volume register.",
+                    "Almost none: those volume-register samples are nearly silent."],
+                   ["Combined waveforms", "Weak and thin (saw+triangle and the like).", "Louder and much more usable."],
+                   ["Classic use", "Most famous C64 music was written on and for the 6581.", "Later C64 models and many modern SID players."]],
+                  [30 * mm, (img_w - 30 * mm) / 2, (img_w - 30 * mm) / 2]),
+            Spacer(1, 4),
+            "A tune written for one chip can sound wrong on the other: filters too muddy or too sharp, or samples missing. "
+            "In SID1, treat the switch as a character choice: the <b>6581</b> for warm, dirty classic C64 basses and leads, "
+            "the <b>8580</b> for cleaner, resonant filter sweeps and the combined waveforms. Switching the chip mutes the "
+            "output for a moment, to hide the thump of the 6581's DC offset."),
     chapter("System Requirements",
             ["Ableton Live 12 Suite, or Live 12 Standard with Max for Live",
              "macOS 10.13 or later, Intel or Apple Silicon",
@@ -180,10 +244,11 @@ story = [
 ]
 doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm,
                         topMargin=16 * mm, bottomMargin=18 * mm, title="SID1 User Manual", author="Transistor Labs")
-doc.build(story, onFirstPage=footer, onLaterPages=footer)
+doc.build(story, onFirstPage=cover, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.0.2", ["The envelope faders no longer cover a help text from the oscillator section."]),
+HISTORY = [("1.0.3", ["Manual: new cover, a chapter on the SID chip and its history, and a comparison of the 6581 and 8580 models."]),
+           ("1.0.2", ["The envelope faders no longer cover a help text from the oscillator section."]),
            ("1.0.1", ["The filter cutoff knob now acts at once on held notes (before, only from the next note).",
                       "Envelope faders are vertical and show the SID's real times (attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain in %).",
                       "C64 rainbow stripes on the panel.",

@@ -4,7 +4,7 @@ mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 outlets = 1;
-var VERSION = "1.0.2";
+var VERSION = "1.0.3";
 function hexagon(cx, cy, r) {
     var i, a;
     for (i = 0; i < 6; i++) { a = Math.PI / 3 * i - Math.PI / 2; if (i == 0) mgraphics.move_to(cx + r * Math.cos(a), cy + r * Math.sin(a)); else mgraphics.line_to(cx + r * Math.cos(a), cy + r * Math.sin(a)); }
