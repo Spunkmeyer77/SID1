@@ -11,16 +11,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Engine render test
         run: |
           cc -O2 -Wall -std=c99 tests/render_test.c engine/sid1_engine.c core/sid.c -lm -o render_test
           ./render_test && ./render_test 2x
 
   mac:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
         run: cmake -S max -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
       - name: Build
@@ -41,7 +41,7 @@ jobs:
       - name: Package
         run: |
           cd build/externals && ditto -c -k --keepParent "sid1~.mxo" ../../sid1-mac.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: sid1-mac
           path: sid1-mac.zip
@@ -49,7 +49,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
         run: cmake -S max -B build -A x64
       - name: Build
@@ -60,7 +60,7 @@ jobs:
           $f = Get-ChildItem -Recurse build -Filter "sid1~.mxe64" | Select-Object -First 1
           Write-Host $f.FullName
           Compress-Archive -Path $f.FullName -DestinationPath sid1-windows.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: sid1-windows
           path: sid1-windows.zip
@@ -72,7 +72,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
