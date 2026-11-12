@@ -73,7 +73,7 @@ function doRoll(amt, t) {
     outlet(2, "rolled", name);
     show();
 }
-function roll() { status = "ROLLING"; show(); doRoll(st.amount, st.type); }
+function roll() { if (status != "UPDATE_SID1~") status = ""; doRoll(st.amount, st.type); }
 function mutate() {
     var t = TYPES.indexOf(lastType);
     doRoll(20, t < 0 ? st.type : t);
@@ -135,7 +135,7 @@ function tags(b) {
 }
 function show() {
     outlet(1, "hist", hlist.length, idx);
-    if (idx < 0) { outlet(1, "result", status || "-", 0, 0, 0); return; }
+    if (idx < 0 || status == "UPDATE_SID1~") { outlet(1, "result", status || "-", 0, 0, 0); return; }
     var h = hlist[idx];
     outlet(1, ["result", h.n.replace(/ /g, "_"), idx + 1, hlist.length, kept].concat(tags(h.b)));
 }
