@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle, PageBreak)
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -51,6 +51,26 @@ for b in j["patcher"]["boxes"]:
         for i, t in enumerate(items):
             dr.rectangle([x + i * cw, y, x + (i + 1) * cw - S, y + h], fill=rgb(b["bgoncolor"]) if i == 0 else (42, 44, 50))
             dr.text((x + i * cw + 3 * S, y + 3 * S), t, fill=(20, 22, 26) if i == 0 else (200, 204, 214), font=small)
+    elif k == "live.slider" and not b.get("showname", 1):
+        pass                                # (invisible: drawn by the ADSR jsui)
+    elif k == "jsui" and "adsr" in b["filename"]:
+        vals = [0, 8, 10, 9]; labels = ["2ms", "300ms", "67%", "750ms"]
+        top, bot = y + 34 * S, y + 128 * S
+        # envelope shape
+        pts = [(x + 4 * S, y + 26 * S), (x + 14 * S, y + 4 * S), (x + 48 * S, y + 11 * S), (x + 66 * S, y + 11 * S), (x + w - 4 * S, y + 26 * S)]
+        dr.polygon(pts, fill=(48, 56, 92)); dr.line(pts, fill=(143, 168, 255), width=2 * S)
+        for i2, vv in enumerate(vals):
+            cx = x + (i2 * 28 + 14) * S
+            for t in range(16):
+                ty = bot - t / 15 * (bot - top); lg = t % 5 == 0
+                dr.rectangle([cx - (11 if lg else 9) * S, ty, cx - (6 if lg else 6) * S, ty + S - 1], fill=(150, 155, 168) if lg else (80, 84, 96))
+            dr.rounded_rectangle([cx - 2.5 * S, top - 4 * S, cx + 2.5 * S, bot + 4 * S], 3 * S, fill=(15, 16, 20))
+            cy = bot - vv / 15 * (bot - top)
+            dr.rounded_rectangle([cx - 1.5 * S, cy, cx + 1.5 * S, bot + 3 * S], 2 * S, fill=(143, 168, 255))
+            dr.rounded_rectangle([cx - 10 * S, cy - 5 * S, cx + 10 * S, cy + 5 * S], 3 * S, fill=(190, 193, 200))
+            dr.rectangle([cx - 9 * S, cy - 0.6 * S, cx + 9 * S, cy + 0.6 * S], fill=(20, 22, 28))
+            dr.text((cx - 3 * S, bot + 4 * S), "ADSR"[i2], fill=(150, 155, 168), font=small)
+            dr.text((cx - 11 * S, y + h - 9 * S), labels[i2], fill=(240, 240, 240), font=small)
     elif k == "live.slider":
         dr.rectangle([x + w / 2 - 3 * S, y + 10 * S, x + w / 2 + 3 * S, y + h - 12 * S], fill=(42, 44, 50), outline=(74, 78, 88))
         dr.rectangle([x + w / 2 - 3 * S, y + h / 2, x + w / 2 + 3 * S, y + h - 12 * S], fill=(143, 168, 255))
@@ -212,7 +232,7 @@ story = [
                    ["Brand", "CHIP: 6581 or 8580. POLY (six voices) or MONO (one voice, legato). 2X: oversampling, a cleaner top end for more CPU. VOL: output level. BEND: pitch bend range in semitones. ABOUT: version and credits. The store link opens ticcoross.gumroad.com."],
                    ["Preset", "The display shows bank, slot, name, and EDITED when the sound differs from its slot. See Presets."],
                    ["Oscillator", "TRI, SAW, PUL, NOI: the waveforms (combine them for the SID's mixed waves). RING: ring modulation. SYNC: hard sync. HARD: hard restart, which makes every note attack cleanly. PW: pulse width. SPEED, MIN, MAX: the pulse-width sweep."],
-                   ["Envelope", "Attack, Decay, Sustain, Release in the chip's 16 steps, shown as the real SID times: attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain as a level in %."],
+                   ["Envelope", "Attack, Decay, Sustain, Release in the chip's 16 steps, shown as the real SID times: attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain as a level in %. Above the faders, a drawing shows the envelope's shape as you move them."],
                    ["Filter", "ON sends the voices through the filter. LP, BP, HP: the modes, which can be combined. CUTOFF, RES. SWEEP moves the cutoff each frame from CUTOFF towards END."],
                    ["Pitch · Vibrato", "DEPTH (cents), SPEED and DELAY (frames before it starts). TRANS: transpose in semitones. FINE: tuning in cents."],
                    ["Wavetable", "Up to 8 steps, one per frame (1/50 s). Each step sets a waveform (· keeps the patch's) and a note: an offset from the key played, or with ABS an absolute note. LENGTH: steps used. LOOP: the step to jump back to after the last."]],
@@ -247,7 +267,8 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=cover, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.0.3", ["Manual: new cover, a chapter on the SID chip and its history, and a comparison of the 6581 and 8580 models."]),
+HISTORY = [("1.0.4", ["New envelope faders: recessed slots with a scale, lit fill and metal caps, the SID times below, and a live drawing of the envelope shape above."]),
+           ("1.0.3", ["Manual: new cover, a chapter on the SID chip and its history, and a comparison of the 6581 and 8580 models."]),
            ("1.0.2", ["The envelope faders no longer cover a help text from the oscillator section."]),
            ("1.0.1", ["The filter cutoff knob now acts at once on held notes (before, only from the next note).",
                       "Envelope faders are vertical and show the SID's real times (attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain in %).",

@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -125,12 +125,16 @@ def tab(rect, longname, short, items, initial=0, invisible=0, color=BLUE):
     return add(b)
 
 
-def slider(rect, longname, short, lo, hi, initial, enum=None):
+def slider(rect, longname, short, lo, hi, initial, enum=None, invisible_look=False):
     b = {"maxclass": "live.slider", "numinlets": 1, "numoutlets": 2, "outlettype": ["", "float"],
          "patching_rect": place(39, 100), "orientation": 0, "showname": 1, "shownumber": 1,
          "slidercolor": WHITE, "activeslidercolor": BLUE, "tribordercolor": BORDER, "trioncolor": BLUE,
          "textcolor": TEXT, "fontsize": 8.0}
     b.update(pres(rect))
+    if invisible_look:                   # drawn by a jsui underneath; the slider only takes the mouse
+        clear = [0.0, 0.0, 0.0, 0.0]
+        b.update({"showname": 0, "shownumber": 0, "slidercolor": clear, "activeslidercolor": clear,
+                  "tribordercolor": clear, "trioncolor": clear, "tricolor": clear, "textcolor": clear})
     b.update(param(longname, short, 2 if enum else 1, lo, hi, initial, enum=enum))
     return add(b)
 
@@ -323,9 +327,17 @@ for i, (f, ln, sh, lo, hi, ini) in enumerate([("pw", "Pulse Width", "PW", 0, 409
 ATK = ["2ms", "8ms", "16ms", "24ms", "38ms", "56ms", "68ms", "80ms", "100ms", "250ms", "500ms", "800ms", "1s", "3s", "5s", "8s"]
 DR = ["6ms", "24ms", "48ms", "72ms", "114ms", "168ms", "204ms", "240ms", "300ms", "750ms", "1.5s", "2.4s", "3s", "9s", "15s", "24s"]
 SUS = ["%d%%" % round(v * 100 / 15) for v in range(16)]
+# drawn faders (sid1_adsr.js) under invisible live.sliders: the jsui's travel is y 34..128 inside its box
+adsr = jsui([494, 18, 112, 148], "sid1_adsr.js")
+boxes[-1]["box"]["ignoreclick"] = 1
+ADSR_SLIDERS = {}
 for i, (f, ln, sh, ini, en) in enumerate([("attack", "Attack", "A", 0, ATK), ("decay", "Decay", "D", 8, DR),
                                           ("sustain", "Sustain", "S", 10, SUS), ("release", "Release", "R", 9, DR)]):
-    field_ctl(slider([494 + i * 28, 20, 28, 144], ln, sh, 0, 15, ini, enum=en), f)
+    sl = slider([494 + i * 28, 18 + 34 - 7, 28, 128 - 34 + 14], ln, sh, 0, 15, ini, enum=en, invisible_look=True)
+    field_ctl(sl, f)
+    pj = obj("prepend " + f, 1, 1)
+    wire(sl, 0, pj); wire(pj, 0, adsr)
+    ADSR_SLIDERS[f] = pj
 
 # filter
 fx = 611
@@ -373,6 +385,8 @@ wire(sid, 1, rf)
 for i, (f, ctl) in enumerate([(f, c) for f, c in FIELD_ROUTE if isinstance(f, str)]):
     p = obj("prepend set", 1, 1)
     wire(rf, i, p); wire(p, 0, ctl)
+    if f in ADSR_SLIDERS:
+        wire(rf, i, ADSR_SLIDERS[f])
 for j, wf in enumerate(["wtwave", "wtnote", "wtabsk"]):
     rk = obj("route 0 1 2 3 4 5 6 7", 1, 9)
     wire(rf, len(plain) + j, rk)
@@ -399,6 +413,7 @@ patcher = {"patcher": {
         {"name": "sid1_logo.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_about.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_stripes.js", "type": "TEXT", "implicit": 1},
+        {"name": "sid1_adsr.js", "type": "TEXT", "implicit": 1},
         ],
     "latency": 0, "is_mpe": 0, "minimum_live_version": "", "minimum_max_version": "",
     "platform_compatibility": 0, "project": {"version": 1, "creationdate": 3590052493, "modificationdate": 3590052493,
