@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle)
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -183,7 +183,8 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=footer, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.0.1", ["The filter cutoff knob now acts at once on held notes (before, only from the next note).",
+HISTORY = [("1.0.2", ["The envelope faders no longer cover a help text from the oscillator section."]),
+           ("1.0.1", ["The filter cutoff knob now acts at once on held notes (before, only from the next note).",
                       "Envelope faders are vertical and show the SID's real times (attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain in %).",
                       "C64 rainbow stripes on the panel.",
                       "The preset name field no longer shows quotes; an overlapping help text is gone."]),

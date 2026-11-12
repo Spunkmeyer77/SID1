@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -317,7 +317,6 @@ for i, (f, t, col) in enumerate([("ring", "RING", BLUE), ("sync", "SYNC", BLUE),
 for i, (f, ln, sh, lo, hi, ini) in enumerate([("pw", "Pulse Width", "PW", 0, 4095, 2048), ("pwspeed", "PW Speed", "SPEED", -128, 127, 0),
                                               ("pwmin", "PW Min", "MIN", 0, 255, 0), ("pwmax", "PW Max", "MAX", 0, 255, 255)]):
     field_ctl(dial([x0 + i * 40, 62, 40, 48], ln, sh, lo, hi, ini), f)
-comment([x0, 116, 155, 40], "PW sweeps between MIN and MAX at SPEED (per 50 Hz frame). HARD = hard restart.", DIM, 7.0, False)
 
 # envelope
 # the SID's own times (attack; decay and release are 3x), and sustain as 16 levels
