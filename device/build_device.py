@@ -530,8 +530,11 @@ for i_, bx in enumerate(boxes):
         MAIN_NAMES.append(_safe(bb, "mp%d" % i_))
 # open: the main panel's controls go, the RANDOM panel comes; close: the other way round
 # (each shown control is brought to the front in order, backdrop first, so the backdrop never covers them)
+# knob drawings come last, above their (invisible) dials: they ignore clicks, so the dials still turn
+_knob_names = set(b["box"]["varname"] for b in boxes if b["box"].get("filename") == "sid1_knob.js")
+_rp_order = [n for n in RP_NAMES if n not in _knob_names] + [n for n in RP_NAMES if n in _knob_names]
 mrshow = msg(", ".join(["script hide %s" % n for n in MAIN_NAMES] +
-                       ["script show %s, script bringtofront %s" % (n, n) for n in RP_NAMES]))
+                       ["script show %s, script bringtofront %s" % (n, n) for n in _rp_order]))
 mrhide = msg(", ".join(["script hide %s" % n for n in RP_NAMES] + ["script show %s" % n for n in MAIN_NAMES]))
 wire(rnd_btn, 0, trn); wire(trn, 0, mrshow); wire(mrshow, 0, tp)
 wire(rclose_in, 0, mrhide); wire(mrhide, 0, tp)

@@ -4,7 +4,7 @@
 mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
-var name = "-", i = 0, n = 0, kept = 0, tags = [], free = "";
+var name = "NO SCRIPT", i = 0, n = 0, kept = 0, tags = [], free = "";   // (NO SCRIPT until sid1_random.js speaks)
 function result() {
     var a = arrayfromargs(arguments);
     name = String(a[0]).replace(/_/g, " "); i = a[1] | 0; n = a[2] | 0; kept = a[3] | 0; tags = a.slice(4).map(String);
@@ -19,12 +19,13 @@ function paint() {
         set_source_rgb(0.251, 0.192, 0.553); rectangle_rounded(2, 2, w - 4, 40, 5, 5); fill();
         select_font_face("Courier New Bold"); set_font_size(9);
         set_source_rgb(0.66, 0.62, 0.94); move_to(8, 14);
-        show_text(n ? (i == 1 ? "ORIGINAL" : "ROLL " + (i - 1) + " OF " + (n - 1)) : "PRESS ROLL");
+        show_text(n ? (i == 1 ? "ORIGINAL" : "ROLL " + (i - 1) + " OF " + (n - 1)) : name == "READY" || name == "-" ? "PRESS ROLL" : "STATUS");
         if (n) {
             if (kept) { set_source_rgb(0.56, 0.88, 0.54); move_to(w - 40, 14); show_text("KEPT"); }
             else { set_source_rgb(1, 0.70, 0.28); move_to(w - 64, 14); show_text("NOT SAVED"); }
         }
-        set_source_rgb(1, 1, 1); set_font_size(17); move_to(8, 35); show_text(n ? name : "SID1");
+        set_source_rgb(1, 1, 1); set_font_size(n || name == "READY" || name == "-" ? 17 : 12); move_to(8, 35);
+        show_text(n ? name : name == "READY" || name == "-" ? "SID1" : name);
         // tags
         select_font_face("Arial Bold"); set_font_size(7.5);
         x = 0; y = 50;

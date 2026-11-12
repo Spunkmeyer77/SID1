@@ -20,6 +20,8 @@ var model = 0, last = null, lastType = "BASS", hlist = [], idx = -1, barCount = 
 var counters = {};
 var noteOff = new Task(function () { outlet(0, "note", 60, 0); }, this);
 
+var status = "";                       // shown on the result screen when nothing has been rolled
+function loadbang() { status = "READY"; show(); post("SID1 RANDOM: ready\n"); }
 function grab() { last = null; outlet(0, "dump"); return last; }
 function patch() {
     var a = arrayfromargs(arguments);
@@ -57,7 +59,10 @@ function doRoll(amt, t) {
     m = chipFor();
     last = null;
     outlet(0, "roll", t, amt / 100, st.bright / 100, st.motion / 100, st.length / 100, st.locks, st.chords, m);
-    if (!last) { post("SID1: the sid1~ external did not answer ROLL - replace it with the one from the SID1 kit\n"); return; }
+    if (!last) {
+        post("SID1: the sid1~ external did not answer ROLL - replace it with the one from the SID1 kit\n");
+        status = "UPDATE_SID1~"; show(); return;
+    }
     name = nameFor(lastType);
     outlet(0, "name", name);
     hlist = hlist.slice(0, idx + 1);
@@ -68,7 +73,7 @@ function doRoll(amt, t) {
     outlet(2, "rolled", name);
     show();
 }
-function roll() { doRoll(st.amount, st.type); }
+function roll() { status = "ROLLING"; show(); doRoll(st.amount, st.type); }
 function mutate() {
     var t = TYPES.indexOf(lastType);
     doRoll(20, t < 0 ? st.type : t);
@@ -130,7 +135,7 @@ function tags(b) {
 }
 function show() {
     outlet(1, "hist", hlist.length, idx);
-    if (idx < 0) { outlet(1, "result", "-", 0, 0, 0); return; }
+    if (idx < 0) { outlet(1, "result", status || "-", 0, 0, 0); return; }
     var h = hlist[idx];
     outlet(1, ["result", h.n.replace(/ /g, "_"), idx + 1, hlist.length, kept].concat(tags(h.b)));
 }
