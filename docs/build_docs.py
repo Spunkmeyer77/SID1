@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, KeepTogether, Table, TableStyle)
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 amxd, outdir = sys.argv[1], sys.argv[2]
 os.makedirs(outdir, exist_ok=True)
 
@@ -61,6 +61,12 @@ for b in j["patcher"]["boxes"]:
         dr.rounded_rectangle([x, y, x + w, y + h], 6 * S, fill=(64, 49, 141), outline=(120, 105, 196), width=2 * S)
         dr.text((x + 8 * S, y + 6 * S), "BANK A · 01  FACTORY", fill=(169, 158, 240), font=small)
         dr.text((x + 8 * S, y + 22 * S), "PWM LEAD", fill=(255, 255, 255), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 15 * S))
+    elif k == "jsui" and "stripes" in b["filename"]:
+        cols = [(135, 56, 51), (219, 115, 69), (237, 240, 120), (148, 224, 138), (120, 105, 196)]
+        sl = h * 0.6
+        for i, c in enumerate(cols):
+            xx = x + w - sl - (5 - i) * 9 * S
+            dr.polygon([(xx, y + h), (xx + 6 * S, y + h), (xx + 6 * S + sl, y), (xx + sl, y)], fill=c)
     elif k == "jsui" and "logo" in b["filename"]:
         dr.text((x + 4 * S, y + 4 * S), "⬡ SID1", fill=(240, 240, 240), font=ImageFont.truetype("DejaVuSansMono-Bold.ttf", 16 * S))
 pic = os.path.join(outdir, "panel.png")
@@ -142,7 +148,7 @@ story = [
                    ["Brand", "CHIP: 6581 or 8580. POLY (six voices) or MONO (one voice, legato). 2X: oversampling, a cleaner top end for more CPU. VOL: output level. BEND: pitch bend range in semitones. ABOUT: version and credits. The store link opens ticcoross.gumroad.com."],
                    ["Preset", "The display shows bank, slot, name, and EDITED when the sound differs from its slot. See Presets."],
                    ["Oscillator", "TRI, SAW, PUL, NOI: the waveforms (combine them for the SID's mixed waves). RING: ring modulation. SYNC: hard sync. HARD: hard restart, which makes every note attack cleanly. PW: pulse width. SPEED, MIN, MAX: the pulse-width sweep."],
-                   ["Envelope", "Attack, Decay, Sustain, Release in the chip's 16 steps (0–15)."],
+                   ["Envelope", "Attack, Decay, Sustain, Release in the chip's 16 steps, shown as the real SID times: attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain as a level in %."],
                    ["Filter", "ON sends the voices through the filter. LP, BP, HP: the modes, which can be combined. CUTOFF, RES. SWEEP moves the cutoff each frame from CUTOFF towards END."],
                    ["Pitch · Vibrato", "DEPTH (cents), SPEED and DELAY (frames before it starts). TRANS: transpose in semitones. FINE: tuning in cents."],
                    ["Wavetable", "Up to 8 steps, one per frame (1/50 s). Each step sets a waveform (· keeps the patch's) and a note: an offset from the key played, or with ABS an absolute note. LENGTH: steps used. LOOP: the step to jump back to after the last."]],
@@ -177,7 +183,11 @@ doc = SimpleDocTemplate(os.path.join(outdir, "SID1 User Manual.pdf"), pagesize=A
 doc.build(story, onFirstPage=footer, onLaterPages=footer)
 
 # ---- update history (no dates)
-HISTORY = [("1.0.0", ["First release.",
+HISTORY = [("1.0.1", ["The filter cutoff knob now acts at once on held notes (before, only from the next note).",
+                      "Envelope faders are vertical and show the SID's real times (attack 2 ms to 8 s, decay and release 6 ms to 24 s, sustain in %).",
+                      "C64 rainbow stripes on the panel.",
+                      "The preset name field no longer shows quotes; an overlapping help text is gone."]),
+           ("1.0.0", ["First release.",
                       "Two SID chips (reSID 0.16), 6581 or 8580, six voices, poly or mono legato.",
                       "C64-style patch player: wavetable, pulse-width sweep, filter sweep, vibrato, hard restart.",
                       "Presets: 4 banks of 32 with 16 factory sounds, save, compare, init, bank import and export.",

@@ -58,7 +58,7 @@ function restore(str) {
             if (b.length == NB && k >= 0 && k < NSLOT) lib[k] = { n: clampName(f[1].replace(/_/g, " ")), b: b };
         }
     }
-    outlet(4, "set", name);
+    outlet(4, ["set"].concat(name.split(" ")));
     show();
 }
 
@@ -75,7 +75,7 @@ function loadSlot(i) {
     outlet(0, "name", name);
     edited = 0;
     loading = 0;
-    outlet(4, "set", name);
+    outlet(4, ["set"].concat(name.split(" ")));
     show();
     store();
 }
@@ -107,7 +107,7 @@ function save() {
     show();
     store();
 }
-function init() { outlet(0, "init"); name = "INIT"; outlet(0, "name", name); outlet(4, "set", name); edited = 1; show(); store(); }
+function init() { outlet(0, "init"); name = "INIT"; outlet(0, "name", name); outlet(4, ["set"].concat(name.split(" "))); edited = 1; show(); store(); }
 
 function cmp(on) {
     on = on ? 1 : 0;

@@ -242,14 +242,14 @@ void sid1_set_play_mode(sid1_engine_t *e, int mode) { if (mode != e->play_mode) 
 
 void sid1_set_patch(sid1_engine_t *e, const sid1_patch_t *p)
 {
-    int k, c;
+    int k, c, cut_moved = p->cut != e->p.cut;
     e->p = *p;
     e->p.name[11] = 0;
     for (k = 0; k < 6; k++)
         if (e->vc[k].active && !e->vc[k].hr) { voice_reg(e, k, 5, p->ad); voice_reg(e, k, 6, p->sr); voice_update(e, k); }
     for (c = 0; c < 2; c++) {
         if (!(p->flags & SID1_PF_FILTER)) e->flt[c].on = 0;
-        else if (!e->flt[c].on) { e->flt[c].on = 1; e->flt[c].cut = p->cut << 3; }
+        else if (!e->flt[c].on || cut_moved) { e->flt[c].on = 1; e->flt[c].cut = p->cut << 3; }   /* (a turned knob: now) */
         filter_update(e, c);
     }
 }

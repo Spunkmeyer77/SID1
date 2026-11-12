@@ -4,7 +4,7 @@
 Usage: python3 device/build_device.py [out.amxd]"""
 import json, struct, sys
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 H = 169
 BG = [0.118, 0.125, 0.145, 1.0]
 SEP = [0.20, 0.21, 0.243, 1.0]
@@ -125,13 +125,13 @@ def tab(rect, longname, short, items, initial=0, invisible=0, color=BLUE):
     return add(b)
 
 
-def slider(rect, longname, short, lo, hi, initial):
+def slider(rect, longname, short, lo, hi, initial, enum=None):
     b = {"maxclass": "live.slider", "numinlets": 1, "numoutlets": 2, "outlettype": ["", "float"],
-         "patching_rect": place(39, 100), "orientation": 1, "showname": 1, "shownumber": 1,
+         "patching_rect": place(39, 100), "orientation": 0, "showname": 1, "shownumber": 1,
          "slidercolor": WHITE, "activeslidercolor": BLUE, "tribordercolor": BORDER, "trioncolor": BLUE,
          "textcolor": TEXT, "fontsize": 8.0}
     b.update(pres(rect))
-    b.update(param(longname, short, 1, lo, hi, initial))
+    b.update(param(longname, short, 2 if enum else 1, lo, hi, initial, enum=enum))
     return add(b)
 
 
@@ -250,7 +250,7 @@ dbt = obj("dbtoa", 1, 1); pg = obj("prepend gain", 1, 1)
 wire(vol, 0, dbt); wire(dbt, 0, pg); wire(pg, 0, sid)
 bendr = dial([88, 112, 34, 48], "Bend Range", "BEND", 0, 24, 2)
 direct(bendr, "bendrange")
-comment([6, 132, 80, 30], "SID1 v" + VERSION, DIM, 8.0, False)
+jsui([4, 136, 82, 26], "sid1_stripes.js")
 
 # preset section
 disp = jsui([131, 20, 188, 44], "sid1_display.js")
@@ -320,8 +320,13 @@ for i, (f, ln, sh, lo, hi, ini) in enumerate([("pw", "Pulse Width", "PW", 0, 409
 comment([x0, 116, 155, 40], "PW sweeps between MIN and MAX at SPEED (per 50 Hz frame). HARD = hard restart.", DIM, 7.0, False)
 
 # envelope
-for i, (f, ln, sh, ini) in enumerate([("attack", "Attack", "A", 0), ("decay", "Decay", "D", 8), ("sustain", "Sustain", "S", 10), ("release", "Release", "R", 9)]):
-    field_ctl(slider([496 + i * 27, 20, 26, 140], ln, sh, 0, 15, ini), f)
+# the SID's own times (attack; decay and release are 3x), and sustain as 16 levels
+ATK = ["2ms", "8ms", "16ms", "24ms", "38ms", "56ms", "68ms", "80ms", "100ms", "250ms", "500ms", "800ms", "1s", "3s", "5s", "8s"]
+DR = ["6ms", "24ms", "48ms", "72ms", "114ms", "168ms", "204ms", "240ms", "300ms", "750ms", "1.5s", "2.4s", "3s", "9s", "15s", "24s"]
+SUS = ["%d%%" % round(v * 100 / 15) for v in range(16)]
+for i, (f, ln, sh, ini, en) in enumerate([("attack", "Attack", "A", 0, ATK), ("decay", "Decay", "D", 8, DR),
+                                          ("sustain", "Sustain", "S", 10, SUS), ("release", "Release", "R", 9, DR)]):
+    field_ctl(slider([494 + i * 28, 20, 28, 144], ln, sh, 0, 15, ini, enum=en), f)
 
 # filter
 fx = 611
@@ -339,7 +344,6 @@ for i, (f, ln, sh, lo, hi, ini) in enumerate([("vibdepth", "Vib Depth", "DEPTH",
                                               ("vibdelay", "Vib Delay", "DELAY", 0, 255, 0), ("transpose", "Transpose", "TRANS", -48, 48, 0),
                                               ("fine", "Fine", "FINE", -100, 100, 0)]):
     field_ctl(dial([px + (i % 3) * 42, 20 + (i // 3) * 58, 42, 48], ln, sh, lo, hi, ini), f)
-comment([px + 84, 82, 46, 40], "Vibrato starts after DELAY frames.", DIM, 7.0, False)
 
 # wavetable
 wx = 846
@@ -395,6 +399,7 @@ patcher = {"patcher": {
         {"name": "sid1_display.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_logo.js", "type": "TEXT", "implicit": 1},
         {"name": "sid1_about.js", "type": "TEXT", "implicit": 1},
+        {"name": "sid1_stripes.js", "type": "TEXT", "implicit": 1},
         ],
     "latency": 0, "is_mpe": 0, "minimum_live_version": "", "minimum_max_version": "",
     "platform_compatibility": 0, "project": {"version": 1, "creationdate": 3590052493, "modificationdate": 3590052493,
