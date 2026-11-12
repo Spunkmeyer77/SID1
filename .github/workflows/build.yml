@@ -20,7 +20,7 @@ jobs:
           ./random_test
 
   mac:
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
       - name: Configure
